@@ -2,7 +2,6 @@
 
 [![CI](https://github.com/ShedBoxAI/ShedBoxAI/workflows/🧪%20Tests%20%26%20Quality/badge.svg)](https://github.com/ShedBoxAI/ShedBoxAI/actions/workflows/ci.yml)
 [![Security](https://github.com/ShedBoxAI/ShedBoxAI/workflows/🔒%20Security%20Scan/badge.svg)](https://github.com/ShedBoxAI/ShedBoxAI/actions/workflows/security.yml)
-[![codecov](https://codecov.io/gh/ShedBoxAI/ShedBoxAI/branch/main/graph/badge.svg)](https://codecov.io/gh/ShedBoxAI/ShedBoxAI)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
