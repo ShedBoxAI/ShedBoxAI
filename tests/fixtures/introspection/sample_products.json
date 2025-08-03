@@ -1,0 +1,186 @@
+{
+  "products": [
+    {
+      "product_id": "PROD_001",
+      "name": "Wireless Bluetooth Headphones",
+      "description": "High-quality wireless headphones with noise cancellation",
+      "category": "electronics",
+      "subcategory": "audio",
+      "price": 299.99,
+      "currency": "USD",
+      "in_stock": true,
+      "stock_quantity": 45,
+      "sku": "WBH-NC-001",
+      "brand": "AudioTech",
+      "ratings": {
+        "average": 4.5,
+        "count": 1247,
+        "distribution": {
+          "5_star": 856,
+          "4_star": 289,
+          "3_star": 78,
+          "2_star": 18,
+          "1_star": 6
+        }
+      },
+      "attributes": {
+        "color": "black",
+        "battery_life": "30 hours",
+        "connectivity": "bluetooth 5.0",
+        "weight": "250g",
+        "warranty": "2 years"
+      },
+      "tags": ["wireless", "noise-cancelling", "premium", "travel"],
+      "created_at": "2023-01-15T10:00:00Z",
+      "updated_at": "2024-01-10T14:30:00Z"
+    },
+    {
+      "product_id": "PROD_002",
+      "name": "Smart Fitness Watch",
+      "description": "Advanced fitness tracking with heart rate monitoring",
+      "category": "electronics",
+      "subcategory": "wearables",
+      "price": 199.99,
+      "currency": "USD",
+      "in_stock": true,
+      "stock_quantity": 23,
+      "sku": "SFW-HRM-002",
+      "brand": "FitTrack",
+      "ratings": {
+        "average": 4.2,
+        "count": 892,
+        "distribution": {
+          "5_star": 534,
+          "4_star": 267,
+          "3_star": 71,
+          "2_star": 15,
+          "1_star": 5
+        }
+      },
+      "attributes": {
+        "color": "silver",
+        "battery_life": "7 days",
+        "display": "AMOLED",
+        "water_resistance": "5ATM",
+        "compatibility": "iOS, Android"
+      },
+      "tags": ["fitness", "health", "smartwatch", "waterproof"],
+      "created_at": "2023-03-22T09:15:00Z",
+      "updated_at": "2024-01-12T11:20:00Z"
+    },
+    {
+      "product_id": "PROD_003",
+      "name": "Professional Coffee Maker",
+      "description": "Commercial-grade coffee maker for home use",
+      "category": "home_appliances",
+      "subcategory": "kitchen",
+      "price": 449.99,
+      "currency": "USD",
+      "in_stock": false,
+      "stock_quantity": 0,
+      "sku": "PCM-CG-003",
+      "brand": "BrewMaster",
+      "ratings": {
+        "average": 4.7,
+        "count": 456,
+        "distribution": {
+          "5_star": 342,
+          "4_star": 89,
+          "3_star": 18,
+          "2_star": 5,
+          "1_star": 2
+        }
+      },
+      "attributes": {
+        "color": "stainless steel",
+        "capacity": "12 cups",
+        "features": "programmable, auto-shutoff",
+        "power": "1200W",
+        "dimensions": "14x10x12 inches"
+      },
+      "tags": ["coffee", "programmable", "commercial-grade", "kitchen"],
+      "created_at": "2023-05-10T16:45:00Z",
+      "updated_at": "2024-01-08T08:30:00Z"
+    },
+    {
+      "product_id": "PROD_004",
+      "name": "Ergonomic Office Chair",
+      "description": "Adjustable ergonomic chair with lumbar support",
+      "category": "furniture",
+      "subcategory": "office",
+      "price": 349.99,
+      "currency": "USD",
+      "in_stock": true,
+      "stock_quantity": 12,
+      "sku": "EOC-LS-004",
+      "brand": "ComfortWork",
+      "ratings": {
+        "average": 4.3,
+        "count": 234,
+        "distribution": {
+          "5_star": 145,
+          "4_star": 67,
+          "3_star": 18,
+          "2_star": 3,
+          "1_star": 1
+        }
+      },
+      "attributes": {
+        "color": "black",
+        "material": "mesh and fabric",
+        "adjustable_height": "yes",
+        "lumbar_support": "yes",
+        "armrests": "adjustable"
+      },
+      "tags": ["ergonomic", "office", "adjustable", "lumbar-support"],
+      "created_at": "2023-07-18T13:20:00Z",
+      "updated_at": "2024-01-14T17:10:00Z"
+    },
+    {
+      "product_id": "PROD_005",
+      "name": "Portable Laptop Stand",
+      "description": "Lightweight, adjustable laptop stand for better ergonomics",
+      "category": "accessories",
+      "subcategory": "computer",
+      "price": 79.99,
+      "currency": "USD",
+      "in_stock": true,
+      "stock_quantity": 156,
+      "sku": "PLS-ADJ-005",
+      "brand": "TechStand",
+      "ratings": {
+        "average": 4.1,
+        "count": 678,
+        "distribution": {
+          "5_star": 356,
+          "4_star": 234,
+          "3_star": 67,
+          "2_star": 16,
+          "1_star": 5
+        }
+      },
+      "attributes": {
+        "color": "aluminum",
+        "weight": "1.2 lbs",
+        "adjustable_angles": "6 positions",
+        "compatibility": "laptops up to 17 inches",
+        "foldable": "yes"
+      },
+      "tags": ["portable", "adjustable", "ergonomic", "aluminum"],
+      "created_at": "2023-09-05T11:30:00Z",
+      "updated_at": "2024-01-11T15:45:00Z"
+    }
+  ],
+  "metadata": {
+    "total_products": 5,
+    "categories": ["electronics", "home_appliances", "furniture", "accessories"],
+    "brands": ["AudioTech", "FitTrack", "BrewMaster", "ComfortWork", "TechStand"],
+    "price_range": {
+      "min": 79.99,
+      "max": 449.99,
+      "average": 275.99
+    },
+    "last_updated": "2024-01-15T12:00:00Z",
+    "api_version": "v1.2"
+  }
+}

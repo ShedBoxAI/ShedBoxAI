@@ -1,0 +1,88 @@
+# Sample application configuration for testing YAML introspection
+app_settings:
+  name: "ShedBoxAI Demo App"
+  version: "1.2.3"
+  environment: "development"
+  debug: true
+  max_users: 1000
+  session_timeout: 3600
+
+features:
+  premium_features: true
+  beta_features: false
+  analytics_enabled: true
+  notifications:
+    email: true
+    push: true
+    sms: false
+
+api_config:
+  base_url: "https://api.example.com/v1"
+  timeout: 30
+  retries: 3
+  rate_limits:
+    requests_per_minute: 60
+    burst_limit: 10
+  endpoints:
+    - name: "users"
+      path: "/users"
+      methods: ["GET", "POST", "PUT"]
+      auth_required: true
+    - name: "transactions"
+      path: "/transactions"
+      methods: ["GET", "POST"]
+      auth_required: true
+    - name: "public_stats"
+      path: "/stats"
+      methods: ["GET"]
+      auth_required: false
+
+database:
+  host: "localhost"
+  port: 5432
+  name: "shedboxai_demo"
+  pool_size: 10
+  timeout: 30
+  ssl_mode: "require"
+
+logging:
+  level: "INFO"
+  format: "json"
+  outputs:
+    - type: "console"
+      enabled: true
+    - type: "file"
+      enabled: true
+      path: "/var/log/shedboxai.log"
+      max_size: "100MB"
+      rotation: "daily"
+    - type: "elasticsearch"
+      enabled: false
+      host: "localhost:9200"
+      index: "shedboxai-logs"
+
+security:
+  jwt_secret: "${JWT_SECRET}"
+  encryption_key: "${ENCRYPTION_KEY}"
+  password_policy:
+    min_length: 8
+    require_uppercase: true
+    require_numbers: true
+    require_symbols: false
+  rate_limiting:
+    login_attempts: 5
+    lockout_duration: 900
+
+integrations:
+  stripe:
+    public_key: "${STRIPE_PUBLIC_KEY}"
+    webhook_secret: "${STRIPE_WEBHOOK_SECRET}"
+    enabled: true
+  sendgrid:
+    api_key: "${SENDGRID_API_KEY}"
+    from_email: "noreply@example.com"
+    enabled: true
+  analytics:
+    google_analytics_id: "${GA_TRACKING_ID}"
+    mixpanel_token: "${MIXPANEL_TOKEN}"
+    enabled: false

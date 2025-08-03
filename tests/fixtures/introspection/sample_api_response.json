@@ -1,0 +1,124 @@
+{
+  "data": [
+    {
+      "transaction_id": "TXN_001",
+      "customer_id": "CUST_001",
+      "amount": 299.99,
+      "currency": "USD",
+      "date": "2024-01-15T10:30:00Z",
+      "status": "completed",
+      "payment_method": "credit_card",
+      "merchant": {
+        "id": "MERCH_123",
+        "name": "Tech Store Inc",
+        "category": "electronics"
+      },
+      "metadata": {
+        "order_id": "ORD_5001",
+        "source": "website",
+        "user_agent": "Mozilla/5.0...",
+        "ip_address": "192.168.1.1"
+      }
+    },
+    {
+      "transaction_id": "TXN_002",
+      "customer_id": "CUST_002",
+      "amount": 89.50,
+      "currency": "USD",
+      "date": "2024-01-15T11:15:00Z",
+      "status": "completed",
+      "payment_method": "paypal",
+      "merchant": {
+        "id": "MERCH_456",
+        "name": "Fashion Outlet",
+        "category": "clothing"
+      },
+      "metadata": {
+        "order_id": "ORD_5002",
+        "source": "mobile_app",
+        "user_agent": "ShedBoxAI-Mobile/1.0",
+        "ip_address": "10.0.0.1"
+      }
+    },
+    {
+      "transaction_id": "TXN_003",
+      "customer_id": "CUST_003",
+      "amount": 1250.00,
+      "currency": "USD",
+      "date": "2024-01-15T14:22:00Z",
+      "status": "pending",
+      "payment_method": "bank_transfer",
+      "merchant": {
+        "id": "MERCH_789",
+        "name": "Home Depot Pro",
+        "category": "home_improvement"
+      },
+      "metadata": {
+        "order_id": "ORD_5003",
+        "source": "website",
+        "user_agent": "Chrome/120.0.0.0",
+        "ip_address": "203.0.113.1"
+      }
+    },
+    {
+      "transaction_id": "TXN_004",
+      "customer_id": "CUST_001",
+      "amount": 45.99,
+      "currency": "USD",
+      "date": "2024-01-15T16:45:00Z",
+      "status": "completed",
+      "payment_method": "credit_card",
+      "merchant": {
+        "id": "MERCH_234",
+        "name": "Coffee & More",
+        "category": "food_beverage"
+      },
+      "metadata": {
+        "order_id": "ORD_5004",
+        "source": "pos_terminal",
+        "user_agent": null,
+        "ip_address": "172.16.0.1"
+      }
+    },
+    {
+      "transaction_id": "TXN_005",
+      "customer_id": "CUST_004",
+      "amount": 567.80,
+      "currency": "USD",
+      "date": "2024-01-15T18:30:00Z",
+      "status": "failed",
+      "payment_method": "credit_card",
+      "merchant": {
+        "id": "MERCH_567",
+        "name": "Electronics Express",
+        "category": "electronics"
+      },
+      "metadata": {
+        "order_id": "ORD_5005",
+        "source": "website",
+        "user_agent": "Safari/17.2",
+        "ip_address": "198.51.100.1",
+        "error_code": "INSUFFICIENT_FUNDS",
+        "error_message": "Transaction declined due to insufficient funds"
+      }
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "per_page": 5,
+    "total": 1547,
+    "total_pages": 310,
+    "has_more": true,
+    "next_page": 2
+  },
+  "meta": {
+    "request_id": "req_12345abcde",
+    "timestamp": "2024-01-15T20:00:00Z",
+    "api_version": "v2.1",
+    "rate_limit": {
+      "limit": 1000,
+      "remaining": 987,
+      "reset": 1705356000
+    }
+  }
+}

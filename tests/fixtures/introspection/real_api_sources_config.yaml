@@ -1,0 +1,55 @@
+data_sources:
+  # Working CSV sources
+  customers:
+    type: csv
+    path: tests/fixtures/introspection/sample_customers.csv
+
+  # Working JSON sources
+  product_catalog:
+    type: json
+    path: tests/fixtures/introspection/sample_products.json
+
+  # Working YAML sources
+  app_settings:
+    type: yaml
+    path: tests/fixtures/introspection/sample_config.yaml
+
+  # Real dummy API servers (start these first)
+  dummy_llm_health:
+    type: rest
+    url: http://localhost:5050/health
+    method: GET
+    headers:
+      Authorization: Bearer dummy-key
+
+  dummy_llm_models:
+    type: rest
+    url: http://localhost:5050/v1/models
+    method: GET
+    headers:
+      Authorization: Bearer dummy-key
+
+  market_transactions:
+    type: rest
+    url: http://localhost:5000/api/transactions
+    method: GET
+
+  market_demographics:
+    type: rest
+    url: http://localhost:5000/api/demographics
+    method: GET
+
+  market_inventory:
+    type: rest
+    url: http://localhost:5000/api/relationship/inventory
+    method: GET
+
+  market_orders:
+    type: rest
+    url: http://localhost:5000/api/relationship/orders
+    method: GET
+
+  market_preferences:
+    type: rest
+    url: http://localhost:5000/api/relationship/preferences
+    method: GET

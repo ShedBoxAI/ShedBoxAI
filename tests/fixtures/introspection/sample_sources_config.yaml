@@ -1,0 +1,125 @@
+# Sample data sources configuration for introspection testing
+data_sources:
+  # CSV file source
+  customers:
+    type: csv
+    path: tests/fixtures/introspection/sample_customers.csv
+    options:
+      encoding: utf-8
+      delimiter: ","
+
+  # JSON file source
+  product_catalog:
+    type: json
+    path: tests/fixtures/introspection/sample_products.json
+
+  # YAML configuration source
+  app_settings:
+    type: yaml
+    path: tests/fixtures/introspection/sample_config.yaml
+
+  # Text log file source
+  system_logs:
+    type: text
+    path: tests/fixtures/introspection/sample_logs.txt
+    options:
+      encoding: utf-8
+
+  # REST API source with authentication
+  transactions_api:
+    type: rest
+    url: https://api.stripe.com/v1/charges
+    method: GET
+    headers:
+      Authorization: Bearer ${STRIPE_API_KEY}
+      Content-Type: application/json
+    options:
+      params:
+        limit: 100
+        created[gte]: 1640995200
+    response_path: "data"
+
+  # REST API with OAuth flow
+  analytics_api:
+    type: rest
+    url: https://api.analytics.com/v2/reports
+    method: GET
+    requires_token: true
+    token_source: "analytics_auth"
+    headers:
+      Content-Type: application/json
+    options:
+      params:
+        date_range: "30d"
+        metrics: "sessions,users,revenue"
+
+  # OAuth token source
+  analytics_auth:
+    type: rest
+    url: https://auth.analytics.com/oauth/token
+    method: POST
+    headers:
+      Content-Type: application/json
+    options:
+      json:
+        grant_type: "client_credentials"
+        client_id: ${ANALYTICS_CLIENT_ID}
+        client_secret: ${ANALYTICS_CLIENT_SECRET}
+        scope: "read:reports"
+    is_token_source: true
+    token_for: ["analytics_api"]
+
+  # Public API without authentication
+  weather_data:
+    type: rest
+    url: https://api.openweathermap.org/data/2.5/weather
+    method: GET
+    options:
+      params:
+        q: "London"
+        appid: ${WEATHER_API_KEY}
+        units: "metric"
+    response_path: "main"
+
+  # API with basic authentication
+  legacy_system:
+    type: rest
+    url: https://legacy.company.com/api/data
+    method: GET
+    options:
+      auth: ["${LEGACY_USERNAME}", "${LEGACY_PASSWORD}"]
+      params:
+        format: "json"
+
+  # Inline data source (CSV format)
+  sample_metrics:
+    type: csv
+    data:
+      - metric_name: "user_signups"
+        value: 1245
+        date: "2024-01-15"
+        category: "growth"
+      - metric_name: "revenue"
+        value: 45670.50
+        date: "2024-01-15"
+        category: "financial"
+      - metric_name: "active_users"
+        value: 8932
+        date: "2024-01-15"
+        category: "engagement"
+
+  # Inline JSON data
+  feature_flags:
+    type: json
+    data:
+      flags:
+        new_dashboard: true
+        beta_features: false
+        advanced_analytics: true
+      rollout_percentages:
+        premium_tier: 100
+        standard_tier: 25
+        free_tier: 0
+      metadata:
+        last_updated: "2024-01-15T10:00:00Z"
+        updated_by: "admin@company.com"
