@@ -79,6 +79,6 @@ ShedBoxAI is released under the MIT License. See [LICENSE](LICENSE) for details.
 
 ## Support
 
-- [Documentation](https://shedboxai.github.io)
+- [Documentation](https://shedboxai.com/docs/getting-started/installation)
 - [Issue Tracker](https://github.com/ShedBoxAI/ShedBoxAI/issues)
 - [Discussions](https://github.com/ShedBoxAI/ShedBoxAI/discussions)
