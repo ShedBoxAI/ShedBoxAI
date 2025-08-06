@@ -33,13 +33,12 @@ ShedBoxAI transforms complex data processing and AI workflows into simple YAML c
        type: csv
        path: "users.csv"
 
-   operations:
-     - name: "process_users"
-       type: transform
-       source: "users"
-       transformations:
-         - field: "email"
-           function: "lowercase"
+   processing:
+     contextual_filtering:
+       users:
+       - field: age
+         condition: '> 25'
+         new_name: adult_users
    ```
 
 3. **Run your workflow**
