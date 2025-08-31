@@ -10,6 +10,7 @@ include pyproject.toml
 include setup.cfg
 include pytest.ini
 include requirements.txt
+include .flake8
 
 # Include all Python packages
 recursive-include shedboxai *.py
