@@ -1,4 +1,4 @@
-name: Release
+name: 🚀 Release & Publish
 
 on:
   push:
@@ -6,38 +6,79 @@ on:
       - 'v*'
 
 jobs:
-  build-and-publish:
+  test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[test]"
+    
+    - name: Run tests
+      run: pytest tests/ -v
+
+  build-and-publish:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write
+      id-token: write  # For trusted publishing
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for proper changelog
 
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
 
-    - name: Install dependencies
+    - name: Install build dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install build twine
+        pip install build twine check-manifest
+
+    - name: Verify package structure
+      run: |
+        check-manifest
+        python setup.py check --metadata --strict
 
     - name: Build package
       run: python -m build
 
+    - name: Verify build
+      run: |
+        twine check dist/*
+        pip install dist/*.whl
+        python -c "import shedboxai; print(f'Successfully imported shedboxai v{shedboxai.__version__}')"
+
     - name: Create GitHub Release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: softprops/action-gh-release@v1
       with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
+        name: Release ${{ github.ref_name }}
         draft: false
         prerelease: false
+        generate_release_notes: true
+        files: |
+          dist/*.tar.gz
+          dist/*.whl
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Publish to PyPI
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-      run: |
-        twine upload dist/*
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        password: ${{ secrets.PYPI_API_TOKEN }}
+        verbose: true

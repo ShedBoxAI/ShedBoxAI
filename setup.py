@@ -16,6 +16,8 @@ setup(
         "networkx>=3.2.1",
         "jsonpath-ng>=1.7.0",
         "tenacity>=8.0.0",
+        "jinja2>=3.0.0",
+        "rich>=13.0.0",  # For CLI interface
         # Introspection feature dependencies
         "genson>=1.2.2",  # JSON schema generation
         "chardet>=5.0.0",  # Character encoding detection
@@ -54,12 +56,18 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/shedboxai/shedboxai",
     classifiers=[
+        "Development Status :: 5 - Production/Stable",
+        "Intended Audience :: Developers",
+        "License :: OSI Approved :: BSD License",
+        "Operating System :: OS Independent",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
         "Programming Language :: Python :: 3.13",
+        "Topic :: Software Development :: Libraries :: Python Modules",
+        "Topic :: Scientific/Engineering :: Artificial Intelligence",
     ],
     python_requires=">=3.9",
 )
