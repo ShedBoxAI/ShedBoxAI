@@ -213,6 +213,9 @@ Commands:
     Common options: --output, --verbose, --quiet
     Specific options: --retry, --skip-errors, --force, --validate, --include-samples
 
+  guide        Display or save the AI Assistant Guide
+    Options: --save, --info
+
 Examples:
   shedboxai run config.yaml                    # Run pipeline with config
   shedboxai run config.yaml -o results.json   # Run and save results
@@ -221,10 +224,14 @@ Examples:
   shedboxai introspect sources.yaml            # Analyze data sources
   shedboxai introspect sources.yaml --force    # Overwrite existing output
   shedboxai introspect sources.yaml --include-samples  # Include sample data
+
+  shedboxai guide                              # Display the AI Assistant Guide
+  shedboxai guide --save guide.md              # Save guide to file
+  shedboxai guide --info                       # Show guide information
         """,
     )
-    parser.add_argument("command", choices=["run", "introspect"], help="Command to execute")
-    parser.add_argument("config", help="Path to configuration file")
+    parser.add_argument("command", choices=["run", "introspect", "guide"], help="Command to execute")
+    parser.add_argument("config", nargs="?", help="Path to configuration file (not required for guide command)")
     parser.add_argument("--output", "-o", help="Output file path (optional)")
     parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose output")
     parser.add_argument("--quiet", "-q", action="store_true", help="Suppress log messages")
@@ -253,6 +260,18 @@ Examples:
         "--include-samples",
         action="store_true",
         help="[introspect only] Include sample data structures in output (default: off)",
+    )
+
+    # Guide-specific arguments
+    parser.add_argument(
+        "--save",
+        metavar="FILE",
+        help="[guide only] Save guide to specified file",
+    )
+    parser.add_argument(
+        "--info",
+        action="store_true",
+        help="[guide only] Show guide information",
     )
 
     # Parse arguments with error handling
@@ -297,7 +316,13 @@ Examples:
 
     # Validate inputs early
     try:
-        config_file = validate_config_file(args.config)
+        # Guide command doesn't require a config file
+        if args.command == "guide":
+            config_file = None
+        else:
+            if not args.config:
+                exit_with_error(f"Configuration file is required for '{args.command}' command", args.verbose)
+            config_file = validate_config_file(args.config)
 
         output_file = None
         if args.output:
@@ -405,6 +430,46 @@ Examples:
             exit_with_error(format_shedboxai_error(e), args.verbose)
         except Exception as e:
             # For unexpected errors, provide more context with verbose flag
+            if args.verbose:
+                exit_with_error(f"Unexpected error: {e}", True)
+            else:
+                exit_with_error(
+                    f"Unexpected error: {e}\n\nRun with --verbose for more details",
+                    False,
+                )
+
+    # Display or save the AI Assistant Guide
+    elif args.command == "guide":
+        from .guide import get_guide_content, print_guide_info, save_guide_to_file
+
+        try:
+            # Handle --info flag
+            if args.info:
+                print_guide_info()
+                return
+
+            # Handle --save flag
+            if args.save:
+                if args.verbose:
+                    print(f"Saving AI Assistant Guide to: {args.save}")
+
+                try:
+                    save_guide_to_file(args.save)
+                    print(f"✅ AI Assistant Guide saved to: {args.save}")
+                except Exception as e:
+                    exit_with_error(f"Failed to save guide: {e}", args.verbose)
+                return
+
+            # Default: display the guide content
+            try:
+                content = get_guide_content()
+                print(content)
+            except Exception as e:
+                exit_with_error(f"Failed to load guide: {e}", args.verbose)
+
+        except KeyboardInterrupt:
+            exit_with_error("Operation cancelled by user", args.verbose, exit_code=130)
+        except Exception as e:
             if args.verbose:
                 exit_with_error(f"Unexpected error: {e}", True)
             else:

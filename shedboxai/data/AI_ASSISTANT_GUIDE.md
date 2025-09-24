@@ -33,8 +33,14 @@ Every ShedBoxAI config has these sections:
 1. **data_sources** - Define input data (files, APIs)
 2. **processing** - Transform data (6 operation types, 80+ functions)
 3. **graph** - Complex workflows with dependencies (optional)
-4. **ai_interface** - LLM integration for analysis (optional)
+4. **ai_interface** - LLM integration with variable lifecycle understanding
 5. **output** - Save results to files
+
+## Quick Reference Sections
+- **Variable Lifecycle** - When processing results become available as template variables
+- **Defensive Templates** - Error-resistant patterns with fallbacks
+- **Start Simple Workflow** - Test inline data → processing → templates → real APIs
+- **Data Format Reference** - Exact output structures from each operation type
 
 ---
 
@@ -549,26 +555,168 @@ ai_interface:
     include_metadata: true     # Include context and config
 ```
 
+### Variable Lifecycle & Data Flow
+
+Understanding when variables become available is crucial for template success:
+
+```yaml
+# 1. INITIAL STATE - only data sources are available:
+{{ users }}           # Original data source
+{{ products }}        # Original data source
+
+# 2. AFTER contextual_filtering - new_name creates variables:
+processing:
+  contextual_filtering:
+    users:
+      - field: "age"
+        condition: ">= 18"
+        new_name: "adult_users"  # Creates {{ adult_users }} variable
+
+# Now available: {{ users }}, {{ adult_users }}
+
+# 3. AFTER content_summarization - adds "_summary" suffix:
+processing:
+  content_summarization:
+    adult_users:
+      method: "statistical"
+      # Creates {{ adult_users_summary }} automatically
+
+# Now available: {{ users }}, {{ adult_users }}, {{ adult_users_summary }}
+
+# 4. AFTER advanced_operations - uses operation name:
+processing:
+  advanced_operations:
+    spending_analysis:  # Creates {{ spending_analysis }} variable
+      source: "adult_users"
+      group_by: "city"
+
+# Now available: {{ users }}, {{ adult_users }}, {{ adult_users_summary }}, {{ spending_analysis }}
+```
+
 ### Context Variables
 
 Variables available in all prompt templates:
 
 ```yaml
-# Data sources are automatically available:
+# Data sources (always available):
 {{ users }}          # Full users data source
 {{ products }}        # Full products data source
 
-# For fan-out prompts:
-{{ user }}            # Current user item (for_each: "users")
+# For fan-out prompts (for_each: "users"):
+{{ user }}            # Current user item (singular form)
 {{ product }}         # Current product item (for_each: "products")
 
 # Default context variables:
 {{ company }}         # From ai_interface.default_context
 {{ date }}            # From ai_interface.default_context
 
-# Operation results:
-{{ user_stats }}      # Results from content_summarization
-{{ filtered_data }}   # Results from contextual_filtering
+# Processing operation results (available after processing):
+{{ adult_users }}     # From contextual_filtering with new_name
+{{ user_stats_summary }} # From content_summarization (source_name + "_summary")
+{{ spending_analysis }} # From advanced_operations (operation name)
+```
+
+### Defensive Template Patterns
+
+Protect against missing variables and processing failures:
+
+```yaml
+ai_interface:
+  prompts:
+    safe_analysis:
+      user_template: |
+        # Check if data exists before using
+        {% if adult_users is defined and adult_users %}
+          Found {{ adult_users|length }} adult users.
+
+          {% if adult_users_summary is defined %}
+            Average age: {{ adult_users_summary.age_mean }}
+          {% else %}
+            Statistical analysis pending...
+          {% endif %}
+        {% else %}
+          No adult user data available.
+        {% endif %}
+
+        # Safe access with fallbacks
+        {% set revenue = spending_analysis.total_revenue | default("N/A") %}
+        Total Revenue: {{ revenue }}
+
+    # Template debugging - see all available variables
+    debug_variables:
+      user_template: |
+        Available template variables:
+        {% for key, value in globals().items() if not key.startswith('_') %}
+        - {{ key }}: {{ value.__class__.__name__ }}
+          {% if value is iterable and value is not string %}
+            ({{ value|length }} items)
+          {% endif %}
+        {% endfor %}
+```
+
+### Start Simple Workflow
+
+Follow this progression to avoid debugging complex configurations:
+
+```yaml
+# STEP 1: Start with inline test data
+data_sources:
+  test_users:
+    type: csv
+    data:
+      - name: "John"
+        age: 25
+        city: "NYC"
+      - name: "Jane"
+        age: 30
+        city: "LA"
+
+# STEP 2: Test processing operations
+processing:
+  contextual_filtering:
+    test_users:
+      - field: "age"
+        condition: ">= 25"
+        new_name: "adults"
+
+# STEP 3: Test AI templates with known variables
+ai_interface:
+  prompts:
+    simple_test:
+      user_template: |
+        Test data: {{ adults|length }} adults found
+        Names: {% for user in adults %}{{ user.name }}{% if not loop.last %}, {% endif %}{% endfor %}
+
+# STEP 4: Only after everything works, replace with real APIs
+data_sources:
+  real_users:
+    type: rest
+    url: "https://api.example.com/users"
+```
+
+### Data Format Reference
+
+Know what data structure each operation produces:
+
+```yaml
+# contextual_filtering output:
+{{ filtered_data }}  # List of dictionaries (same structure as input)
+
+# content_summarization output:
+{{ source_name_summary }}  # Dictionary with statistical results:
+# {
+#   "field_name_mean": 25.5,
+#   "field_name_min": 18,
+#   "field_name_max": 65,
+#   "field_name_count": 150
+# }
+
+# advanced_operations output:
+{{ operation_name }}  # List of dictionaries with aggregated results:
+# [
+#   {"city": "NYC", "total_amount": 1500, "avg_amount": 150},
+#   {"city": "LA", "total_amount": 2000, "avg_amount": 200}
+# ]
 ```
 
 ---
@@ -700,13 +848,23 @@ ShedBoxAI provides detailed error messages with suggestions:
 
 ## Best Practices
 
-1. **Use descriptive names** for data sources and operations
-2. **Environment variables** for all sensitive data (API keys, passwords)
-3. **Test with small datasets** before scaling up
-4. **Use fan-out prompts** for personalized AI processing
-5. **Store prompts** during development to debug templates
-6. **Parallel processing** for better performance with multiple AI calls
-7. **Statistical operations** before AI analysis for better context
+### Development Workflow
+1. **Start simple**: Use inline test data before real APIs
+2. **Test processing first**: Verify operations create expected variables
+3. **Debug templates**: Use `debug_variables` prompt to see available data
+4. **Add defensive patterns**: Always check `{% if variable is defined %}`
+
+### Configuration Guidelines
+5. **Use descriptive names** for data sources and operations
+6. **Environment variables** for all sensitive data (API keys, passwords)
+7. **Understand variable lifecycle**: Know when `new_name`, `_summary`, and operation names become available
+
+### Performance & Reliability
+8. **Use fan-out prompts** for personalized AI processing
+9. **Store prompts** during development to debug templates
+10. **Parallel processing** for better performance with multiple AI calls
+11. **Statistical operations** before AI analysis for better context
+12. **Template fallbacks**: Provide default values for unreliable data sources
 
 ---
 
