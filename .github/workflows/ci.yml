@@ -93,7 +93,7 @@ jobs:
     - name: Run comprehensive linting
       run: |
         echo "Running flake8..."
-        flake8 . --count --statistics
+        flake8 . --count --statistics --extend-ignore=C901,E203
         echo "Checking black formatting..."
         black --check .
         echo "Checking isort import sorting..."

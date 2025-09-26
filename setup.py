@@ -6,6 +6,10 @@ setup(
     name="shedboxai",
     version="1.0.0",
     packages=find_packages(),
+    package_data={
+        "shedboxai": ["data/AI_ASSISTANT_GUIDE.md"],
+    },
+    include_package_data=True,
     install_requires=[
         "pyyaml>=6.0.1",
         "pandas>=2.0.0",
