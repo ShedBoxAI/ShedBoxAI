@@ -50,13 +50,13 @@ Every ShedBoxAI config has these sections:
 # Root configuration file structure
 data_sources:
   # Define data inputs
-  
+
 processing:
   # Define processing pipeline operations
-  
+
 ai_interface:
   # Configure LLM integration (optional)
-  
+
 output:
   # Configure output format and destination
 ```
@@ -67,7 +67,7 @@ output:
 
 ### Supported Types
 - `csv` - CSV files with pandas options
-- `json` - JSON files  
+- `json` - JSON files
 - `yaml` - YAML configuration files
 - `rest` - REST API endpoints
 - `text` - Plain text files
@@ -84,7 +84,7 @@ data_sources:
       header: 0
 ```
 
-### JSON Sources  
+### JSON Sources
 ```yaml
 data_sources:
   products:
@@ -104,7 +104,7 @@ data_sources:
 ```yaml
 data_sources:
   logs:
-    type: text  
+    type: text
     path: "logs/system.log"
     options:
       encoding: utf-8
@@ -164,7 +164,7 @@ data_sources:
         client_secret: "${CLIENT_SECRET}"
     is_token_source: true
     token_for: ["protected_endpoint"]
-  
+
   # Protected endpoint
   protected_endpoint:
     type: rest
@@ -230,7 +230,7 @@ processing:
   format_conversion:
     users:
       extract_fields: ["name", "email", "age"]
-      
+
     # OR use templates
     user_names:
       template: "{{item.first_name}} {{item.last_name}}"
@@ -251,7 +251,7 @@ processing:
 
 **Statistical Functions:**
 - `mean` - Average value
-- `min` - Minimum value  
+- `min` - Minimum value
 - `max` - Maximum value
 - `count` - Number of records
 - `sum` - Total sum
@@ -272,14 +272,14 @@ processing:
           source_field: "user_id"
           to: "orders"
           target_field: "customer_id"
-      
+
       # Conditional highlighting
       conditional_highlighting:
         - source: "users"
           condition: "item.membership_level == 'Gold'"
           insight_name: "gold_member"
           context: "High-value customer with Gold membership"
-          
+
       # Derived fields
       derived_fields:
         - "full_address = item.address + ', ' + item.city + ', ' + item.state"
@@ -309,7 +309,7 @@ processing:
 - `COUNT(*)` or `COUNT(field)` - Count records
 - `AVG(field)` - Average value
 - `MIN(field)` - Minimum value
-- `MAX(field)` - Maximum value  
+- `MAX(field)` - Maximum value
 - `MEDIAN(field)` - Median value
 - `STD(field)` - Standard deviation
 
@@ -323,13 +323,13 @@ processing:
     demographic_report:
       template: |
         # Market Demographics Report
-        
+
         ## Population Overview
         - ZIP Code: {{ demographics.zip_code }}
         - Total Population: {{ demographics.population }}
         - Median Household Income: ${{ demographics.median_household_income }}
         - Median Age: {{ demographics.median_age }} years
-        
+
         ## Transaction Summary
         - Total Transactions: {{ transactions|length }}
         {% if transactions %}
@@ -370,7 +370,7 @@ processing:
       operation: content_summarization
       depends_on: [convert_format]
       config_key: transaction_stats
-  
+
   # Named configuration blocks for each operation
   contextual_filtering:
     large_transaction_filter:
@@ -378,12 +378,12 @@ processing:
         - field: amount
           condition: "> 100"
           new_name: large_transactions
-  
+
   format_conversion:
     transaction_formatter:
       large_transactions:
         extract_fields: ["amount", "customer_id", "transaction_type"]
-  
+
   content_summarization:
     transaction_stats:
       large_transactions:
@@ -484,21 +484,21 @@ ai_interface:
       model: "gpt-4"
       temperature: 0.7
       max_tokens: 1000
-      
+
   default_context:
     company: "ShedBox Inc"
     date: "2024-01-15"
-    
+
   prompts:
     analyze_users:
       system: "You are a data analyst expert."
       user_template: |
         Analyze this user data and provide insights:
-        
+
         {% for user in users %}
         - Name: {{ user.name }}, Age: {{ user.age }}, City: {{ user.city }}
         {% endfor %}
-        
+
         Provide a summary of demographics and trends.
       response_format: "json"
       temperature: 0.3
@@ -534,7 +534,7 @@ ai_interface:
         Age: {{ user.age }}
         Interests: {{ user.interests | join(', ') }}
         Purchase History: {{ user.orders | length }} orders
-        
+
         Make it engaging and relevant.
       for_each: "users"        # Process once per user
       parallel: true           # Process all users in parallel
@@ -729,7 +729,7 @@ data_sources:
   users:
     type: csv
     path: "data/users.csv"
-    
+
   transactions:
     type: rest
     url: "https://api.stripe.com/v1/charges"
@@ -748,13 +748,13 @@ processing:
       - field: "age"
         condition: ">= 18"
         new_name: "adult_users"
-        
+
   content_summarization:
     adult_users:
       method: "statistical"
       fields: ["age", "account_balance"]
       summarize: ["mean", "min", "max", "count"]
-      
+
   advanced_operations:
     spending_analysis:
       source: "adult_users"
@@ -776,20 +776,20 @@ ai_interface:
       Content-Type: "application/json"
     options:
       model: "gpt-4"
-      
+
   default_context:
     analysis_date: "2024-01-15"
     company: "ShedBox Inc"
-    
+
   prompts:
     customer_analysis:
       system: "You are a business intelligence analyst."
       user_template: |
         Analyze our customer data and spending patterns.
-        
+
         User Statistics: {{ adult_users_summary }}
         Spending Analysis: {{ spending_analysis }}
-        
+
         Provide insights and recommendations.
       response_format: "json"
       temperature: 0.3

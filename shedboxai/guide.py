@@ -7,7 +7,6 @@ file that contains comprehensive ShedBoxAI configuration reference.
 
 import importlib.resources
 from pathlib import Path
-from typing import Optional
 
 
 def get_guide_content() -> str:
@@ -24,24 +23,23 @@ def get_guide_content() -> str:
     try:
         # Try to read from package data first using modern approach
         try:
-            files = importlib.resources.files('shedboxai.data')
-            guide_file = files / 'AI_ASSISTANT_GUIDE.md'
-            content = guide_file.read_text(encoding='utf-8')
+            files = importlib.resources.files("shedboxai.data")
+            guide_file = files / "AI_ASSISTANT_GUIDE.md"
+            content = guide_file.read_text(encoding="utf-8")
             return content
         except (ImportError, AttributeError):
             # Fallback for older Python versions
-            with importlib.resources.open_text('shedboxai.data', 'AI_ASSISTANT_GUIDE.md', encoding='utf-8') as f:
+            with importlib.resources.open_text("shedboxai.data", "AI_ASSISTANT_GUIDE.md", encoding="utf-8") as f:
                 return f.read()
     except Exception:
         # Fallback: try to read from relative path (development mode)
         try:
-            guide_path = Path(__file__).parent / 'data' / 'AI_ASSISTANT_GUIDE.md'
-            with open(guide_path, 'r', encoding='utf-8') as f:
+            guide_path = Path(__file__).parent / "data" / "AI_ASSISTANT_GUIDE.md"
+            with open(guide_path, "r", encoding="utf-8") as f:
                 return f.read()
         except Exception as e:
             raise FileNotFoundError(
-                "Could not find AI_ASSISTANT_GUIDE.md. "
-                "This file should be bundled with the package."
+                "Could not find AI_ASSISTANT_GUIDE.md. " "This file should be bundled with the package."
             ) from e
 
 
@@ -62,10 +60,8 @@ def save_guide_to_file(file_path: str) -> None:
     output_path = Path(file_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(output_path, 'w', encoding='utf-8') as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         f.write(content)
-
-
 
 
 def print_guide_info() -> None:
