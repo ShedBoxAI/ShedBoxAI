@@ -313,7 +313,7 @@ graph:
                     else:
                         logger.info(f"  → Created '{key}': {type(result[key]).__name__}")
             else:
-                logger.debug(f"  No new variables created")
+                logger.debug("No new variables created")
 
         if configured_ops:
             logger.info("")

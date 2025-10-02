@@ -19,6 +19,7 @@ import traceback
 from pathlib import Path
 from typing import NoReturn
 
+from . import __version__
 from .core.exceptions import (
     AuthenticationError,
     CyclicDependencyError,
@@ -199,8 +200,8 @@ def format_shedboxai_error(error: ShedBoxAIError) -> str:
     return message
 
 
-def main() -> None:
-    """Main CLI entry point."""
+def create_argument_parser() -> argparse.ArgumentParser:
+    """Create and configure the argument parser."""
     parser = argparse.ArgumentParser(
         description="ShedBoxAI - AI-powered applications through configuration",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -230,6 +231,7 @@ Examples:
   shedboxai guide --info                       # Show guide information
         """,
     )
+    parser.add_argument("--version", "-V", action="version", version=f"ShedBoxAI {__version__}")
     parser.add_argument("command", choices=["run", "introspect", "guide"], help="Command to execute")
     parser.add_argument("config", nargs="?", help="Path to configuration file (not required for guide command)")
     parser.add_argument("--output", "-o", help="Output file path (optional)")
@@ -274,16 +276,11 @@ Examples:
         help="[guide only] Show guide information",
     )
 
-    # Parse arguments with error handling
-    try:
-        args = parser.parse_args()
-    except SystemExit as e:
-        # argparse calls sys.exit() on error, but we want to handle it
-        if e.code != 0:
-            sys.exit(e.code)
-        return
+    return parser
 
-    # Configure logging based on command line arguments
+
+def configure_logging(args: argparse.Namespace) -> None:
+    """Configure logging based on command line arguments."""
     root_logger = logging.getLogger()
 
     # Remove any existing handlers
@@ -314,169 +311,204 @@ Examples:
         # Disable urllib3 warnings
         logging.getLogger("urllib3").setLevel(logging.ERROR)
 
-    # Validate inputs early
+
+def validate_inputs(args: argparse.Namespace) -> tuple[Path | None, Path | None]:
+    """
+    Validate input and output file paths.
+
+    Returns:
+        Tuple of (config_file, output_file)
+    """
+    # Guide command doesn't require a config file
+    if args.command == "guide":
+        config_file = None
+    else:
+        if not args.config:
+            exit_with_error(f"Configuration file is required for '{args.command}' command", args.verbose)
+        config_file = validate_config_file(args.config)
+
+    output_file = None
+    if args.output:
+        output_file = validate_output_file(args.output)
+
+    return config_file, output_file
+
+
+def save_output(result: dict, output_file: Path, verbose: bool) -> None:
+    """Save pipeline result to output file."""
+    if verbose:
+        print(f"Saving results to: {output_file}")
+
     try:
-        # Guide command doesn't require a config file
-        if args.command == "guide":
-            config_file = None
+        with open(output_file, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
+
+        if verbose:
+            print(f"Results successfully saved to: {output_file}")
+
+    except (OSError, IOError) as e:
+        exit_with_error(f"Failed to write output file: {e}", verbose)
+    except (TypeError, ValueError) as e:
+        exit_with_error(f"Failed to serialize results to JSON: {e}", verbose)
+
+
+def print_result_summary(result: dict) -> None:
+    """Print a summary of pipeline results to stdout."""
+    try:
+        # Print a summary instead of the full JSON
+        print("\n✅ ShedBoxAI Pipeline Execution Completed\n")
+
+        # Print key counts and statistics
+        print("📊 Data Summary:")
+        for source_name, source_data in result.items():
+            if source_name == "customer_analysis" or not isinstance(source_data, dict):
+                continue
+
+            print(f"  • {source_name}: ", end="")
+            if isinstance(source_data, dict):
+                items = []
+                for key, value in source_data.items():
+                    if isinstance(value, list):
+                        items.append(f"{len(value)} {key}")
+                if items:
+                    print(", ".join(items))
+                else:
+                    print("processed successfully")
+            else:
+                print("processed successfully")
+
+        # Print AI analysis if available
+        if "customer_analysis" in result:
+            print("\n🤖 AI Analysis:")
+            print(f"  {result['customer_analysis']}")
+
+        # Print success message with hint for full JSON
+        print("\n💡 Tip: Use the --output option to save the full result as JSON")
+
+    except (TypeError, ValueError) as e:
+        exit_with_error(f"Failed to format results: {e}", False)
+
+
+def handle_run_command(config_file: Path, output_file: Path | None, args: argparse.Namespace) -> None:
+    """Handle the 'run' command."""
+    try:
+        if args.verbose:
+            print(f"Loading configuration from: {config_file}")
+
+        pipeline = Pipeline(str(config_file))
+        result = pipeline.run()
+
+        if output_file:
+            save_output(result, output_file, args.verbose)
         else:
-            if not args.config:
-                exit_with_error(f"Configuration file is required for '{args.command}' command", args.verbose)
-            config_file = validate_config_file(args.config)
+            print_result_summary(result)
 
-        output_file = None
-        if args.output:
-            output_file = validate_output_file(args.output)
+    except KeyboardInterrupt:
+        exit_with_error("Operation cancelled by user", args.verbose, exit_code=130)
+    except ShedBoxAIError as e:
+        exit_with_error(format_shedboxai_error(e), args.verbose)
+    except Exception as e:
+        if args.verbose:
+            exit_with_error(f"Unexpected error: {e}", True)
+        else:
+            exit_with_error(f"Unexpected error: {e}\n\nRun with --verbose for more details", False)
 
+
+def handle_introspect_command(config_file: Path, args: argparse.Namespace) -> None:
+    """Handle the 'introspect' command."""
+    from .core.introspection.introspect_cli import run_introspection
+
+    try:
+        run_introspection(
+            config_path=str(config_file),
+            output_path=args.output or "introspection.md",
+            sample_size=100,  # Fixed default value since we removed the flag
+            retry_sources=args.retry.split(",") if args.retry else [],
+            skip_errors=args.skip_errors,
+            force_overwrite=args.force,
+            validate_only=args.validate,
+            verbose=args.verbose,
+            include_samples=args.include_samples,
+        )
+
+    except KeyboardInterrupt:
+        exit_with_error("Operation cancelled by user", args.verbose, exit_code=130)
+    except ShedBoxAIError as e:
+        exit_with_error(format_shedboxai_error(e), args.verbose)
+    except Exception as e:
+        if args.verbose:
+            exit_with_error(f"Unexpected error: {e}", True)
+        else:
+            exit_with_error(f"Unexpected error: {e}\n\nRun with --verbose for more details", False)
+
+
+def handle_guide_command(args: argparse.Namespace) -> None:
+    """Handle the 'guide' command."""
+    from .guide import get_guide_content, print_guide_info, save_guide_to_file
+
+    try:
+        # Handle --info flag
+        if args.info:
+            print_guide_info()
+            return
+
+        # Handle --save flag
+        if args.save:
+            if args.verbose:
+                print(f"Saving AI Assistant Guide to: {args.save}")
+
+            try:
+                save_guide_to_file(args.save)
+                print(f"✅ AI Assistant Guide saved to: {args.save}")
+            except Exception as e:
+                exit_with_error(f"Failed to save guide: {e}", args.verbose)
+            return
+
+        # Default: display the guide content
+        try:
+            content = get_guide_content()
+            print(content)
+        except Exception as e:
+            exit_with_error(f"Failed to load guide: {e}", args.verbose)
+
+    except KeyboardInterrupt:
+        exit_with_error("Operation cancelled by user", args.verbose, exit_code=130)
+    except Exception as e:
+        if args.verbose:
+            exit_with_error(f"Unexpected error: {e}", True)
+        else:
+            exit_with_error(f"Unexpected error: {e}\n\nRun with --verbose for more details", False)
+
+
+def main() -> None:
+    """Main CLI entry point."""
+    parser = create_argument_parser()
+
+    # Parse arguments with error handling
+    try:
+        args = parser.parse_args()
+    except SystemExit as e:
+        # argparse calls sys.exit() on error, but we want to handle it
+        if e.code != 0:
+            sys.exit(e.code)
+        return
+
+    # Configure logging
+    configure_logging(args)
+
+    # Validate inputs
+    try:
+        config_file, output_file = validate_inputs(args)
     except CLIError as e:
         exit_with_error(str(e), args.verbose)
 
-    # Run the pipeline
+    # Route to appropriate command handler
     if args.command == "run":
-        try:
-            if args.verbose:
-                print(f"Loading configuration from: {config_file}")
-
-            pipeline = Pipeline(str(config_file))
-            result = pipeline.run()
-
-            if output_file:
-                if args.verbose:
-                    print(f"Saving results to: {output_file}")
-
-                try:
-                    with open(output_file, "w", encoding="utf-8") as f:
-                        json.dump(result, f, indent=2, ensure_ascii=False)
-
-                    if args.verbose:
-                        print(f"Results successfully saved to: {output_file}")
-
-                except (OSError, IOError) as e:
-                    exit_with_error(f"Failed to write output file: {e}", args.verbose)
-                except (TypeError, ValueError) as e:
-                    exit_with_error(f"Failed to serialize results to JSON: {e}", args.verbose)
-            else:
-                # Print results to stdout if no output file specified
-                try:
-                    # Print a summary instead of the full JSON
-                    print("\n✅ ShedBoxAI Pipeline Execution Completed\n")
-
-                    # Print key counts and statistics
-                    print("📊 Data Summary:")
-                    for source_name, source_data in result.items():
-                        if source_name == "customer_analysis" or not isinstance(source_data, dict):
-                            continue
-
-                        print(f"  • {source_name}: ", end="")
-                        if isinstance(source_data, dict):
-                            items = []
-                            for key, value in source_data.items():
-                                if isinstance(value, list):
-                                    items.append(f"{len(value)} {key}")
-                            if items:
-                                print(", ".join(items))
-                            else:
-                                print("processed successfully")
-                        else:
-                            print("processed successfully")
-
-                    # Print AI analysis if available
-                    if "customer_analysis" in result:
-                        print("\n🤖 AI Analysis:")
-                        print(f"  {result['customer_analysis']}")
-
-                    # Print success message with hint for full JSON
-                    print("\n💡 Tip: Use the --output option to save the full result as JSON")
-
-                except (TypeError, ValueError) as e:
-                    exit_with_error(f"Failed to format results: {e}", args.verbose)
-
-        except KeyboardInterrupt:
-            exit_with_error("Operation cancelled by user", args.verbose, exit_code=130)
-        except ShedBoxAIError as e:
-            # Format and print ShedBoxAI-specific errors
-            exit_with_error(format_shedboxai_error(e), args.verbose)
-        except Exception as e:
-            # For unexpected errors, provide more context with verbose flag
-            if args.verbose:
-                exit_with_error(f"Unexpected error: {e}", True)
-            else:
-                exit_with_error(
-                    f"Unexpected error: {e}\n\nRun with --verbose for more details",
-                    False,
-                )
-
-    # Run introspection
+        handle_run_command(config_file, output_file, args)
     elif args.command == "introspect":
-        from .core.introspection.introspect_cli import run_introspection
-
-        try:
-            run_introspection(
-                config_path=str(config_file),
-                output_path=args.output or "introspection.md",
-                sample_size=100,  # Fixed default value since we removed the flag
-                retry_sources=args.retry.split(",") if args.retry else [],
-                skip_errors=args.skip_errors,
-                force_overwrite=args.force,
-                validate_only=args.validate,
-                verbose=args.verbose,
-                include_samples=args.include_samples,
-            )
-
-        except KeyboardInterrupt:
-            exit_with_error("Operation cancelled by user", args.verbose, exit_code=130)
-        except ShedBoxAIError as e:
-            # Format and print ShedBoxAI-specific errors
-            exit_with_error(format_shedboxai_error(e), args.verbose)
-        except Exception as e:
-            # For unexpected errors, provide more context with verbose flag
-            if args.verbose:
-                exit_with_error(f"Unexpected error: {e}", True)
-            else:
-                exit_with_error(
-                    f"Unexpected error: {e}\n\nRun with --verbose for more details",
-                    False,
-                )
-
-    # Display or save the AI Assistant Guide
+        handle_introspect_command(config_file, args)
     elif args.command == "guide":
-        from .guide import get_guide_content, print_guide_info, save_guide_to_file
-
-        try:
-            # Handle --info flag
-            if args.info:
-                print_guide_info()
-                return
-
-            # Handle --save flag
-            if args.save:
-                if args.verbose:
-                    print(f"Saving AI Assistant Guide to: {args.save}")
-
-                try:
-                    save_guide_to_file(args.save)
-                    print(f"✅ AI Assistant Guide saved to: {args.save}")
-                except Exception as e:
-                    exit_with_error(f"Failed to save guide: {e}", args.verbose)
-                return
-
-            # Default: display the guide content
-            try:
-                content = get_guide_content()
-                print(content)
-            except Exception as e:
-                exit_with_error(f"Failed to load guide: {e}", args.verbose)
-
-        except KeyboardInterrupt:
-            exit_with_error("Operation cancelled by user", args.verbose, exit_code=130)
-        except Exception as e:
-            if args.verbose:
-                exit_with_error(f"Unexpected error: {e}", True)
-            else:
-                exit_with_error(
-                    f"Unexpected error: {e}\n\nRun with --verbose for more details",
-                    False,
-                )
+        handle_guide_command(args)
 
 
 if __name__ == "__main__":

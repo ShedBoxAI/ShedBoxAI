@@ -40,8 +40,8 @@ class ContextualFilteringHandler(OperationHandler):
             source_data = result[source_name]
 
             # Convert DataFrames to list of dicts
-            if hasattr(source_data, 'to_dict') and callable(source_data.to_dict):
-                source_data = source_data.to_dict('records')
+            if hasattr(source_data, "to_dict") and callable(source_data.to_dict):
+                source_data = source_data.to_dict("records")
                 result[source_name] = source_data
 
             if isinstance(source_data, list):
@@ -58,11 +58,10 @@ class ContextualFilteringHandler(OperationHandler):
 
                 # Check for multiple filters
                 if len(filters) > 1:
-                    filter_names = [f.new_name for f in filters if hasattr(f, 'new_name') and f.new_name]
+                    filter_names = [f.new_name for f in filters if hasattr(f, "new_name") and f.new_name]
                     first_name = filter_names[0] if filter_names else source_name
                     self._log_warning(
-                        f"Multiple filters on '{source_name}' will use AND logic. "
-                        f"Result stored as '{first_name}'"
+                        f"Multiple filters on '{source_name}' will use AND logic. " f"Result stored as '{first_name}'"
                     )
 
                 # Start with all data and apply filters sequentially (AND logic)
@@ -116,9 +115,7 @@ class ContextualFilteringHandler(OperationHandler):
 
                 # Warn if empty
                 if output_count == 0:
-                    self._log_warning(
-                        f"Filter returned 0 records. Check filter conditions or input data."
-                    )
+                    self._log_warning("Filter returned 0 records. Check filter conditions or input data.")
 
         return result
 
