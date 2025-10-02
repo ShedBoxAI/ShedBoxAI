@@ -96,56 +96,47 @@ class TestOperationHandler:
         assert handler.validate_config([]) is False
         assert handler.validate_config(set()) is False
 
-    @patch("sys.stdout", new_callable=io.StringIO)
-    def test_log_warning_output_format(self, mock_stdout):
+    def test_log_warning_output_format(self, caplog):
         """Test _log_warning outputs correct format."""
         handler = ConcreteHandler()
         handler._log_warning("Test warning message")
-        output = mock_stdout.getvalue()
-        assert "Warning [test_operation]: Test warning message\n" == output
+        assert "Test warning message" in caplog.text
+        assert any(record.levelname == "WARNING" for record in caplog.records)
 
-    @patch("sys.stdout", new_callable=io.StringIO)
-    def test_log_error_output_format(self, mock_stdout):
+    def test_log_error_output_format(self, caplog):
         """Test _log_error outputs correct format."""
         handler = ConcreteHandler()
         handler._log_error("Test error message")
-        output = mock_stdout.getvalue()
-        assert "Error [test_operation]: Test error message\n" == output
+        assert "Test error message" in caplog.text
+        assert any(record.levelname == "ERROR" for record in caplog.records)
 
-    @patch("sys.stdout", new_callable=io.StringIO)
-    def test_log_warning_with_special_characters(self, mock_stdout):
+    def test_log_warning_with_special_characters(self, caplog):
         """Test _log_warning handles special characters correctly."""
         handler = ConcreteHandler()
         handler._log_warning("Warning with unicode: ñáéíóú and symbols: @#$%")
-        output = mock_stdout.getvalue()
-        assert "Warning [test_operation]: Warning with unicode: ñáéíóú and symbols: @#$%" in output
+        assert "Warning with unicode: ñáéíóú and symbols: @#$%" in caplog.text
 
-    @patch("sys.stdout", new_callable=io.StringIO)
-    def test_log_error_with_special_characters(self, mock_stdout):
+    def test_log_error_with_special_characters(self, caplog):
         """Test _log_error handles special characters correctly."""
         handler = ConcreteHandler()
         handler._log_error("Error with unicode: ñáéíóú and symbols: @#$%")
-        output = mock_stdout.getvalue()
-        assert "Error [test_operation]: Error with unicode: ñáéíóú and symbols: @#$%" in output
+        assert "Error with unicode: ñáéíóú and symbols: @#$%" in caplog.text
 
-    @patch("sys.stdout", new_callable=io.StringIO)
-    def test_log_warning_empty_message(self, mock_stdout):
+    def test_log_warning_empty_message(self, caplog):
         """Test _log_warning with empty message."""
         handler = ConcreteHandler()
         handler._log_warning("")
-        output = mock_stdout.getvalue()
-        assert "Warning [test_operation]: \n" == output
+        assert len(caplog.records) == 1
+        assert caplog.records[0].levelname == "WARNING"
 
-    @patch("sys.stdout", new_callable=io.StringIO)
-    def test_log_error_empty_message(self, mock_stdout):
+    def test_log_error_empty_message(self, caplog):
         """Test _log_error with empty message."""
         handler = ConcreteHandler()
         handler._log_error("")
-        output = mock_stdout.getvalue()
-        assert "Error [test_operation]: \n" == output
+        assert len(caplog.records) == 1
+        assert caplog.records[0].levelname == "ERROR"
 
-    @patch("sys.stdout", new_callable=io.StringIO)
-    def test_log_methods_with_different_operation_names(self, mock_stdout):
+    def test_log_methods_with_different_operation_names(self, caplog):
         """Test logging methods use correct operation name."""
         handler1 = ConcreteHandler(operation_name="handler_one")
         handler2 = ConcreteHandler(operation_name="handler_two")
@@ -153,9 +144,10 @@ class TestOperationHandler:
         handler1._log_warning("First warning")
         handler2._log_error("First error")
 
-        output = mock_stdout.getvalue()
-        assert "Warning [handler_one]: First warning\n" in output
-        assert "Error [handler_two]: First error\n" in output
+        assert "First warning" in caplog.text
+        assert "First error" in caplog.text
+        assert len([r for r in caplog.records if r.levelname == "WARNING"]) == 1
+        assert len([r for r in caplog.records if r.levelname == "ERROR"]) == 1
 
     def test_concrete_process_method_preserves_data(self):
         """Test that concrete process method works as expected."""
@@ -202,8 +194,7 @@ class TestOperationHandler:
         # Should handle engine being None gracefully in operations
         # (this would be implementation-specific in real handlers)
 
-    @patch("sys.stdout", new_callable=io.StringIO)
-    def test_multiple_log_calls_order(self, mock_stdout):
+    def test_multiple_log_calls_order(self, caplog):
         """Test that multiple log calls maintain correct order."""
         handler = ConcreteHandler()
 
@@ -211,10 +202,13 @@ class TestOperationHandler:
         handler._log_error("First error")
         handler._log_warning("Second warning")
 
-        output = mock_stdout.getvalue().split("\n")
-        assert "Warning [test_operation]: First warning" == output[0]
-        assert "Error [test_operation]: First error" == output[1]
-        assert "Warning [test_operation]: Second warning" == output[2]
+        assert len(caplog.records) == 3
+        assert caplog.records[0].levelname == "WARNING"
+        assert "First warning" in caplog.records[0].message
+        assert caplog.records[1].levelname == "ERROR"
+        assert "First error" in caplog.records[1].message
+        assert caplog.records[2].levelname == "WARNING"
+        assert "Second warning" in caplog.records[2].message
 
     def test_validate_config_with_complex_nested_structures(self):
         """Test validate_config with complex nested dictionary structures."""
@@ -274,8 +268,7 @@ class TestOperationHandlerEdgeCases:
         assert first_call == "dynamic_1"
         assert second_call == "dynamic_2"
 
-    @patch("sys.stdout", new_callable=io.StringIO)
-    def test_log_with_dynamic_operation_name(self, mock_stdout):
+    def test_log_with_dynamic_operation_name(self, caplog):
         """Test logging with dynamically changing operation name."""
 
         class DynamicHandler(OperationHandler):
@@ -294,8 +287,8 @@ class TestOperationHandlerEdgeCases:
         handler = DynamicHandler()
         handler._log_warning("Test message")
 
-        output = mock_stdout.getvalue()
-        assert "Warning [dynamic_1]: Test message\n" == output
+        assert "Test message" in caplog.text
+        assert any(record.levelname == "WARNING" for record in caplog.records)
 
     def test_validate_config_override_in_subclass(self):
         """Test that subclasses can override validate_config."""

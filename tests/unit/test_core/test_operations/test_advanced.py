@@ -426,29 +426,27 @@ class TestAdvancedOperationsHandler:
         assert "grouped" in result
         assert len(result["grouped"]) == 1
 
-    def test_invalid_dict_config_logs_warning(self, capsys):
+    def test_invalid_dict_config_logs_warning(self, caplog):
         """Test that invalid dict config logs warning."""
         data = {"items": [{"value": 10}]}
         config = {"result": {"invalid_field": "value"}}
 
         result = self.handler.process(data, config)
-        captured = capsys.readouterr()
-        assert "Invalid advanced operation configuration" in captured.out
+        assert "Invalid advanced operation configuration" in caplog.text
         assert result == data
 
-    def test_invalid_config_type_logs_warning(self, capsys):
+    def test_invalid_config_type_logs_warning(self, caplog):
         """Test that invalid config type logs warning."""
         data = {"items": [{"value": 10}]}
         config = {"result": "invalid_string_config"}
 
         result = self.handler.process(data, config)
-        captured = capsys.readouterr()
-        assert "Invalid advanced operation configuration" in captured.out
-        assert "expected dict or AdvancedOperationConfig" in captured.out
+        assert "Invalid advanced operation configuration" in caplog.text
+        assert "expected dict or AdvancedOperationConfig" in caplog.text
         assert result == data
 
     # Bug Detection Tests - These should expose real bugs
-    def test_malformed_aggregation_expressions(self, capsys):
+    def test_malformed_aggregation_expressions(self, caplog):
         """Test malformed aggregation expressions."""
         data = {"items": [{"category": "A", "value": 10}, {"category": "A", "value": 20}]}
         config = {

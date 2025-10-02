@@ -197,27 +197,25 @@ class TestFormatConversionHandler:
         expected = [{"id": 1, "name": "Alice"}]
         assert result["users"] == expected
 
-    def test_invalid_dict_config_logs_warning(self, capsys):
+    def test_invalid_dict_config_logs_warning(self, caplog):
         """Test that invalid dict config logs warning - NOW FIXED."""
         data = {"users": [{"id": 1, "name": "Alice"}]}
         config = {"users": {"invalid_field": "value"}}
 
         result = self.handler.process(data, config)
-        captured = capsys.readouterr()
-        assert "Invalid format conversion configuration" in captured.out
-        assert "Unknown fields" in captured.out
-        assert "invalid_field" in captured.out
+        assert "Invalid format conversion configuration" in caplog.text
+        assert "Unknown fields" in caplog.text
+        assert "invalid_field" in caplog.text
         assert result == data  # Data unchanged due to invalid config
 
-    def test_invalid_config_type_logs_warning(self, capsys):
+    def test_invalid_config_type_logs_warning(self, caplog):
         """Test that invalid config type logs warning."""
         data = {"users": [{"id": 1, "name": "Alice"}]}
         config = {"users": "invalid_string_config"}
 
         result = self.handler.process(data, config)
-        captured = capsys.readouterr()
-        assert "Invalid format conversion configuration" in captured.out
-        assert "expected dict or FormatConversionConfig" in captured.out
+        assert "Invalid format conversion configuration" in caplog.text
+        assert "expected dict or FormatConversionConfig" in caplog.text
         assert result == data
 
     # Edge Cases and Error Handling

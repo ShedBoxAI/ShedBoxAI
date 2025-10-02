@@ -294,6 +294,20 @@ class DataSourceConnector:
                 # Only include non-token sources in the results
                 if not source.is_token_source:
                     result[source_name] = data
+
+                    # Log what was loaded
+                    if isinstance(data, list):
+                        logger.info(f"✓ {source_name}: {len(data)} records loaded")
+                    elif hasattr(data, '__len__') and hasattr(data, 'iloc'):
+                        # pandas DataFrame
+                        logger.info(f"✓ {source_name}: {len(data)} records loaded")
+                    elif isinstance(data, dict) and 'error' not in data:
+                        logger.info(f"✓ {source_name}: loaded (dict with {len(data)} keys)")
+                    elif isinstance(data, dict) and 'error' in data:
+                        # Error already logged above, don't duplicate
+                        pass
+                    else:
+                        logger.info(f"✓ {source_name}: loaded ({type(data).__name__})")
             except (
                 DataSourceError,
                 FileAccessError,
