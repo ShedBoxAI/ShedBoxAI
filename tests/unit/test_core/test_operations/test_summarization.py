@@ -298,28 +298,26 @@ class TestContentSummarizationHandler:
         assert "values_summary" in result
         assert result["values_summary"]["score_mean"] == 15.0
 
-    def test_invalid_dict_config_logs_warning(self, capsys):
+    def test_invalid_dict_config_logs_warning(self, caplog):
         """Test that invalid dict config logs warning."""
         data = {"values": [{"score": 10}]}
         config = {"values": {"invalid_field": "value"}}
 
         result = self.handler.process(data, config)
-        captured = capsys.readouterr()
-        assert "Invalid summarization configuration" in captured.out
+        assert "Invalid summarization configuration" in caplog.text
         assert result == data
 
-    def test_invalid_config_type_logs_warning(self, capsys):
+    def test_invalid_config_type_logs_warning(self, caplog):
         """Test that invalid config type logs warning."""
         data = {"values": [{"score": 10}]}
         config = {"values": "invalid_string_config"}
 
         result = self.handler.process(data, config)
-        captured = capsys.readouterr()
-        assert "Invalid summarization configuration" in captured.out
-        assert "expected dict or ContentSummarizationConfig" in captured.out
+        assert "Invalid summarization configuration" in caplog.text
+        assert "expected dict or ContentSummarizationConfig" in caplog.text
         assert result == data
 
-    def test_unsupported_method_logs_warning(self, capsys):
+    def test_unsupported_method_logs_warning(self, caplog):
         """Test that unsupported summarization method logs warning."""
         data = {"values": [{"score": 10}]}
         config = {
@@ -327,17 +325,15 @@ class TestContentSummarizationHandler:
         }
 
         result = self.handler.process(data, config)
-        captured = capsys.readouterr()
-        assert "Unknown or unsupported summarization method" in captured.out
+        assert "Unknown or unsupported summarization method" in caplog.text
 
-    def test_ai_method_logs_warning(self, capsys):
+    def test_ai_method_logs_warning(self, caplog):
         """Test that AI summarization method logs warning about being unsupported."""
         data = {"values": [{"score": 10}]}
         config = {"values": ContentSummarizationConfig(method="ai", fields=["score"], summarize=["mean"])}
 
         result = self.handler.process(data, config)
-        captured = capsys.readouterr()
-        assert "AI summarization method is no longer supported" in captured.out
+        assert "AI summarization method is no longer supported" in caplog.text
 
     # Multiple Sources Tests
     def test_multiple_sources_processing(self):
