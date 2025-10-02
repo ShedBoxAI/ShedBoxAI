@@ -34,9 +34,15 @@ class ContextualFilteringHandler(OperationHandler):
         # Process each source in the config
         for source_name, filters in config.items():
             if source_name not in result:
+                self._log_warning(f"Source '{source_name}' not found in data")
                 continue
 
             source_data = result[source_name]
+
+            # Convert DataFrames to list of dicts
+            if hasattr(source_data, 'to_dict') and callable(source_data.to_dict):
+                source_data = source_data.to_dict('records')
+                result[source_name] = source_data
 
             if isinstance(source_data, list):
                 # Ensure filters is a list of ContextualFilterConfig
@@ -45,6 +51,19 @@ class ContextualFilteringHandler(OperationHandler):
                         f"Invalid filter configuration for source '{source_name}': expected list, got {type(filters)}"
                     )
                     continue
+
+                # Log input
+                input_count = len(source_data)
+                self._log_info(f"Filtering '{source_name}' ({input_count} records)")
+
+                # Check for multiple filters
+                if len(filters) > 1:
+                    filter_names = [f.new_name for f in filters if hasattr(f, 'new_name') and f.new_name]
+                    first_name = filter_names[0] if filter_names else source_name
+                    self._log_warning(
+                        f"Multiple filters on '{source_name}' will use AND logic. "
+                        f"Result stored as '{first_name}'"
+                    )
 
                 # Start with all data and apply filters sequentially (AND logic)
                 filtered_data = source_data[:]  # Create a copy
@@ -66,10 +85,17 @@ class ContextualFilteringHandler(OperationHandler):
                             continue
 
                     # Apply this filter to the current filtered_data
+                    before_count = len(filtered_data)
                     newly_filtered = []
                     for item in filtered_data:
                         if self._evaluate_filter_condition(item, filter_config):
                             newly_filtered.append(item)
+
+                    after_count = len(newly_filtered)
+                    self._log_debug(
+                        f"  Filter '{filter_config.field} {filter_config.condition}': "
+                        f"{before_count} → {after_count} records"
+                    )
 
                     # Update filtered_data for next iteration
                     filtered_data = newly_filtered
@@ -83,6 +109,16 @@ class ContextualFilteringHandler(OperationHandler):
                         break  # Use the first new_name found
 
                 result[target_name] = filtered_data
+
+                # Log output
+                output_count = len(filtered_data)
+                self._log_info(f"  Result: '{target_name}' = {output_count} records")
+
+                # Warn if empty
+                if output_count == 0:
+                    self._log_warning(
+                        f"Filter returned 0 records. Check filter conditions or input data."
+                    )
 
         return result
 
