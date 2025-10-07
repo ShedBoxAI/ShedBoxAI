@@ -6,10 +6,76 @@ grouping, aggregation, sorting, and limiting.
 """
 
 import re
-from typing import Any, Dict
+from difflib import get_close_matches
+from typing import Any, Dict, List
 
 from ..config.models import AdvancedOperationConfig
+from ..exceptions import ConfigurationError
 from .base import OperationHandler
+
+# Allowed aggregation functions
+ALLOWED_AGG_FUNCTIONS = ["SUM", "AVG", "COUNT", "MIN", "MAX", "MEDIAN", "STD"]
+# Pattern for simple aggregations: FUNCTION(field) or COUNT(*) - allows whitespace
+ALLOWED_AGG_PATTERN = r"^(SUM|AVG|COUNT|MIN|MAX|MEDIAN|STD)\(\s*[\w*]+\s*\)$"
+
+
+def validate_aggregation_expression(expr: str) -> None:
+    """
+    Validate that aggregation expression is simple and supported.
+
+    Args:
+        expr: Aggregation expression to validate
+
+    Raises:
+        ConfigurationError: If expression is too complex or invalid
+    """
+    expr = expr.strip()
+
+    # Check if it matches allowed pattern
+    if not re.match(ALLOWED_AGG_PATTERN, expr):
+        raise ConfigurationError(
+            f"Invalid aggregation expression: '{expr}'\n"
+            f"Only simple aggregations are supported: SUM(field), AVG(field), "
+            f"COUNT(*), MIN(field), MAX(field), MEDIAN(field), STD(field)\n"
+            f"Complex expressions like arithmetic operations (e.g., 'SUM(x)/100'), "
+            f"CASE statements, or DISTINCT (e.g., 'COUNT(DISTINCT x)') are not supported.\n\n"
+            f"Workaround: Use derived fields in relationship_highlighting first, then aggregate:\n"
+            f"  relationship_highlighting:\n"
+            f"    my_data:\n"
+            f"      derived_fields:\n"
+            f"        - calculated_value = item.original_value / 100\n"
+            f"  advanced_operations:\n"
+            f"    summary:\n"
+            f"      source: my_data\n"
+            f"      aggregate:\n"
+            f"        total: 'SUM(calculated_value)'"
+        )
+
+
+def validate_field_exists(field_name: str, available_fields: List[str], source_name: str) -> None:
+    """
+    Validate that a field exists in the available fields, provide suggestions if not.
+
+    Args:
+        field_name: The field name to validate
+        available_fields: List of available field names
+        source_name: Name of the data source for error messages
+
+    Raises:
+        ConfigurationError: If field doesn't exist
+    """
+    if field_name not in available_fields:
+        # Try to find similar field names
+        suggestions = get_close_matches(field_name, available_fields, n=1, cutoff=0.6)
+
+        error_msg = (
+            f"Field '{field_name}' not found in '{source_name}'\n" f"Available fields: {', '.join(available_fields)}"
+        )
+
+        if suggestions:
+            error_msg += f"\n\nDid you mean: '{suggestions[0]}'?"
+
+        raise ConfigurationError(error_msg)
 
 
 class AdvancedOperationsHandler(OperationHandler):
@@ -135,6 +201,10 @@ class AdvancedOperationsHandler(OperationHandler):
         Returns:
             List of aggregated results
         """
+        # Validate all aggregation expressions first
+        for agg_field, agg_expr in aggregates.items():
+            validate_aggregation_expression(agg_expr)
+
         aggregated_data = []
 
         for group_key, group_items in grouped_data.items():

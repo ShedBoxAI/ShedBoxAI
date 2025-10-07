@@ -1,0 +1,34 @@
+data_sources:
+  orders:
+    type: rest
+    url: http://localhost:5000/api/relationship/simplified_orders
+    method: GET
+    response_path: orders
+  products:
+    type: rest
+    url: http://localhost:5000/api/relationship/inventory
+    method: GET
+    response_path: products
+processing:
+  relationship_highlighting:
+    orders:
+      link_fields:
+      - source: orders
+        source_field: first_product_id
+        to: products
+        target_field: product_id
+      derived_fields:
+      - order_month = item.order_date[:7]
+      - high_value = item.total > 200
+      conditional_highlighting:
+      - source: orders
+        condition: item.total > 500
+        insight_name: high_value_order
+        context: Order exceeds $500 - VIP customer treatment recommended
+      context_additions:
+        orders: Order from {{item.order_date}} for customer {{item.customer_id}} totaling
+          ${{item.total}}
+output:
+  type: file
+  path: output/test_10_relationship_complex.json
+  format: json

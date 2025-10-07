@@ -37,10 +37,124 @@ Every ShedBoxAI config has these sections:
 5. **output** - Save results to files
 
 ## Quick Reference Sections
+- **Common Pitfalls & Solutions** - Avoid DataFrame errors, aggregation mistakes, and field typos
 - **Variable Lifecycle** - When processing results become available as template variables
 - **Defensive Templates** - Error-resistant patterns with fallbacks
 - **Start Simple Workflow** - Test inline data → processing → templates → real APIs
 - **Data Format Reference** - Exact output structures from each operation type
+
+---
+
+## Common Pitfalls & Solutions
+
+### DataFrame Truthiness in Templates
+
+**Problem**: Using DataFrames directly in if conditions causes "truth value is ambiguous" errors
+
+```jinja
+{# ❌ This will fail #}
+{% if my_data %}
+  {{ my_data }}
+{% endif %}
+```
+
+**Solution**: Use the `is has_data` test
+
+```jinja
+{# ✅ This works #}
+{% if my_data is defined and my_data is has_data %}
+  {{ my_data }}
+{% endif %}
+
+{# Also check length for explicit control #}
+{% if my_data is defined and my_data|length > 0 %}
+  Found {{ my_data|length }} records
+{% endif %}
+```
+
+**Why this matters**: Python DataFrames can't be used in boolean contexts directly. The `is has_data` test safely checks if data exists for DataFrames, lists, dicts, and other types.
+
+---
+
+### Supported Aggregation Functions
+
+**Allowed aggregations** (simple only):
+```yaml
+advanced_operations:
+  summary:
+    source: transactions
+    group_by: category
+    aggregate:
+      total: "SUM(amount)"        # ✅
+      average: "AVG(price)"       # ✅
+      count: "COUNT(*)"           # ✅
+      minimum: "MIN(date)"        # ✅
+      maximum: "MAX(quantity)"    # ✅
+      median: "MEDIAN(value)"     # ✅
+      std_dev: "STD(measurement)" # ✅
+```
+
+**Not supported** (complex expressions):
+```yaml
+# ❌ Arithmetic operations
+total_dollars: "SUM(amount) / 100"
+
+# ❌ CASE statements
+category: "CASE WHEN amount > 100 THEN 'high' ELSE 'low' END"
+
+# ❌ DISTINCT
+unique_users: "COUNT(DISTINCT user_id)"
+
+# ❌ Nested functions
+complex: "AVG(SUM(amount))"
+```
+
+**Workaround**: Process data first with derived fields, then aggregate
+
+```yaml
+processing:
+  # Step 1: Add derived field
+  relationship_highlighting:
+    transactions:
+      derived_fields:
+        - amount_dollars = item.amount / 100
+        - is_high_value = item.amount > 100
+
+  # Step 2: Aggregate the derived field
+  advanced_operations:
+    summary:
+      source: transactions
+      aggregate:
+        total_dollars: "SUM(amount_dollars)"  # ✅ Works!
+        high_value_count: "SUM(is_high_value)"  # ✅ Works!
+```
+
+---
+
+### Aggregation Field Naming
+
+**Output field names match your aggregate keys exactly**:
+
+```yaml
+advanced_operations:
+  monthly_summary:
+    source: sales
+    group_by: month
+    aggregate:
+      total_revenue: "SUM(amount)"    # Output field: total_revenue
+      avg_order_value: "AVG(amount)"  # Output field: avg_order_value
+      order_count: "COUNT(*)"         # Output field: order_count
+```
+
+**Template usage**:
+```jinja
+{% for row in monthly_summary %}
+  Month: {{ row.month }}
+  Revenue: ${{ row.total_revenue }}      {# Uses your key name #}
+  Average: ${{ row.avg_order_value }}    {# Uses your key name #}
+  Orders: {{ row.order_count }}          {# Uses your key name #}
+{% endfor %}
+```
 
 ---
 
@@ -304,7 +418,7 @@ processing:
       limit: 10
 ```
 
-**Aggregation Functions:**
+**Aggregation Functions** (simple expressions only):
 - `SUM(field)` - Sum values
 - `COUNT(*)` or `COUNT(field)` - Count records
 - `AVG(field)` - Average value
@@ -312,6 +426,8 @@ processing:
 - `MAX(field)` - Maximum value
 - `MEDIAN(field)` - Median value
 - `STD(field)` - Standard deviation
+
+**Important**: Only simple aggregations are supported. Complex expressions like `SUM(x)/100`, `COUNT(DISTINCT x)`, or `CASE WHEN` are **not supported**. Use derived fields in `relationship_highlighting` first, then aggregate. See "Common Pitfalls & Solutions" section above.
 
 ### Template Matching
 
@@ -337,7 +453,7 @@ processing:
         {% endif %}
 ```
 
-**Built-in Jinja2 Filters:**
+**Built-in Jinja2 Filters & Tests:**
 - `{{ data | tojson }}` - Convert to JSON
 - `{{ items | length }}` - Get length
 - `{{ list | join(', ') }}` - Join with separator
@@ -346,6 +462,8 @@ processing:
 - `{{ obj | safe_get('key', 'default') }}` - Safe key access
 - `{{ list | first }}` - Get first item
 - `{{ list | last }}` - Get last item
+- `{% if data is has_data %}` - **Safe check if data exists (works with DataFrames!)**
+- `{% if var is defined %}` - Check if variable is defined
 
 ---
 
@@ -625,8 +743,8 @@ ai_interface:
   prompts:
     safe_analysis:
       user_template: |
-        # Check if data exists before using
-        {% if adult_users is defined and adult_users %}
+        # Check if data exists before using (works with DataFrames!)
+        {% if adult_users is defined and adult_users is has_data %}
           Found {{ adult_users|length }} adult users.
 
           {% if adult_users_summary is defined %}
@@ -1058,6 +1176,17 @@ Multiple filters on the same source combine with AND logic and store under one n
 
 See "Issue 3: Multiple Filters Behavior" above for details.
 
+### 4. Complex Aggregation Expressions Not Supported
+Only simple aggregations like `SUM(field)`, `AVG(field)`, `COUNT(*)` are supported.
+
+**Not Supported**:
+- Arithmetic: `SUM(amount) / 100`
+- DISTINCT: `COUNT(DISTINCT user_id)`
+- CASE statements: `CASE WHEN ... THEN ... END`
+- Nested functions: `AVG(SUM(amount))`
+
+**Workaround**: Use derived fields in `relationship_highlighting`, then aggregate those derived fields. See "Common Pitfalls & Solutions" section above.
+
 ---
 
 ## Error Handling
@@ -1078,7 +1207,7 @@ ShedBoxAI provides detailed error messages with suggestions:
 1. **Start simple**: Use inline test data before real APIs
 2. **Test processing first**: Verify operations create expected variables
 3. **Debug templates**: Use `debug_variables` prompt to see available data
-4. **Add defensive patterns**: Always check `{% if variable is defined %}`
+4. **Add defensive patterns**: Always use `{% if variable is defined and variable is has_data %}` for safe data checks
 
 ### Configuration Guidelines
 5. **Use descriptive names** for data sources and operations

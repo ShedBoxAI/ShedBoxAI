@@ -1,0 +1,49 @@
+data_sources:
+  transactions:
+    type: rest
+    url: http://localhost:5000/api/transactions
+    method: GET
+processing:
+  graph:
+  - id: filter_large
+    operation: contextual_filtering
+    depends_on: []
+    config_key: large_transaction_filter
+  - id: convert_format
+    operation: format_conversion
+    depends_on:
+    - filter_large
+    config_key: transaction_formatter
+  - id: summarize_data
+    operation: content_summarization
+    depends_on:
+    - convert_format
+    config_key: transaction_stats
+  contextual_filtering:
+    large_transaction_filter:
+      transactions:
+      - field: amount
+        condition: '> 100'
+        new_name: large_transactions
+  format_conversion:
+    transaction_formatter:
+      large_transactions:
+        extract_fields:
+        - amount
+        - customer_id
+        - transaction_type
+  content_summarization:
+    transaction_stats:
+      large_transactions:
+        method: statistical
+        fields:
+        - amount
+        summarize:
+        - mean
+        - max
+        - count
+        - sum
+output:
+  type: file
+  path: output/test_9_graph_processing.json
+  format: json

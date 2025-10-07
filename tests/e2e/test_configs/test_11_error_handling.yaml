@@ -1,0 +1,21 @@
+data_sources:
+  nonexistent:
+    type: rest
+    url: http://localhost:5000/api/nonexistent
+    method: GET
+  transactions:
+    type: rest
+    url: http://localhost:5000/api/transactions
+    method: GET
+processing:
+  contextual_filtering:
+    nonexistent:
+    - field: amount
+      condition: '> 100'
+    transactions:
+    - field: nonexistent_field
+      condition: '> 0'
+output:
+  type: file
+  path: output/test_11_error_handling.json
+  format: json

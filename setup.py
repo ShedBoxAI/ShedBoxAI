@@ -31,12 +31,14 @@ setup(
             "pytest>=7.0.0",
             "pytest-cov>=4.0.0",
             "responses>=0.25.0",
+            "flask>=3.0.0",  # For E2E test server
         ],
         "dev": [
             # Testing
             "pytest>=7.0.0",
             "pytest-cov>=4.0.0",
             "responses>=0.25.0",
+            "flask>=3.0.0",  # For E2E test server
             # Code formatting
             "black>=23.0.0",
             "isort>=5.12.0",

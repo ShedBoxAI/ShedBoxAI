@@ -1,0 +1,36 @@
+data_sources:
+  sample_users:
+    type: csv
+    data:
+    - name: Alice Johnson
+      age: 28
+      city: New York
+    - name: Bob Smith
+      age: 34
+      city: Los Angeles
+    - name: Carol Williams
+      age: 22
+      city: Chicago
+    - name: David Brown
+      age: 45
+      city: Houston
+    - name: Eve Davis
+      age: 31
+      city: Phoenix
+processing:
+  contextual_filtering:
+    sample_users:
+    - field: age
+      condition: '> 25'
+      new_name: adult_users
+  advanced_operations:
+    city_stats:
+      source: adult_users
+      group_by: city
+      aggregate:
+        user_count: COUNT(*)
+        avg_age: AVG(age)
+output:
+  type: file
+  path: output/test_12_csv_inline.json
+  format: json

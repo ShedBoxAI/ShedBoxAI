@@ -1,0 +1,22 @@
+data_sources:
+  transactions:
+    type: rest
+    url: http://localhost:5000/api/transactions
+    method: GET
+processing:
+  content_summarization:
+    transactions:
+      method: statistical
+      fields:
+      - amount
+      summarize:
+      - mean
+      - max
+      - min
+      - count
+      - sum
+      - std
+output:
+  type: file
+  path: output/test_4_summarization.json
+  format: json

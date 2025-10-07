@@ -5,10 +5,38 @@ This module provides filtering capabilities for data sources based on
 field conditions with AI-enhanced evaluation support.
 """
 
-from typing import Any, Dict
+from difflib import get_close_matches
+from typing import Any, Dict, List
 
 from ..config.models import ContextualFilterConfig
+from ..exceptions import ConfigurationError
 from .base import OperationHandler
+
+
+def validate_field_exists(field_name: str, available_fields: List[str], source_name: str) -> None:
+    """
+    Validate that a field exists in the available fields, provide suggestions if not.
+
+    Args:
+        field_name: The field name to validate
+        available_fields: List of available field names
+        source_name: Name of the data source for error messages
+
+    Raises:
+        ConfigurationError: If field doesn't exist
+    """
+    if field_name not in available_fields:
+        # Try to find similar field names
+        suggestions = get_close_matches(field_name, available_fields, n=1, cutoff=0.6)
+
+        error_msg = (
+            f"Field '{field_name}' not found in '{source_name}'\n" f"Available fields: {', '.join(available_fields)}"
+        )
+
+        if suggestions:
+            error_msg += f"\n\nDid you mean: '{suggestions[0]}'?"
+
+        raise ConfigurationError(error_msg)
 
 
 class ContextualFilteringHandler(OperationHandler):

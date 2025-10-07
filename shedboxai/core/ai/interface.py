@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import jinja2
+import pandas as pd
 import requests
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
@@ -192,6 +193,17 @@ class AIInterface:
 
         # Add join filter
         self.jinja_env.filters["join"] = lambda arr, sep: sep.join(arr)
+
+        # Add custom test for checking if data exists (handles DataFrames safely)
+        def has_data(value):
+            """Check if value has data (handles DataFrames safely)"""
+            if isinstance(value, pd.DataFrame):
+                return len(value) > 0
+            elif isinstance(value, (list, dict, str)):
+                return len(value) > 0
+            return bool(value)
+
+        self.jinja_env.tests["has_data"] = has_data
 
     def _store_prompt(
         self,

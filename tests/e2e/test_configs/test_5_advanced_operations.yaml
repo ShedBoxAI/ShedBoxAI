@@ -1,0 +1,20 @@
+data_sources:
+  transactions:
+    type: rest
+    url: http://localhost:5000/api/transactions
+    method: GET
+processing:
+  advanced_operations:
+    transaction_summary:
+      source: transactions
+      group_by: transaction_type
+      aggregate:
+        total_amount: SUM(amount)
+        avg_amount: AVG(amount)
+        transaction_count: COUNT(*)
+      sort: -total_amount
+      limit: 5
+output:
+  type: file
+  path: output/test_5_advanced_operations.json
+  format: json
