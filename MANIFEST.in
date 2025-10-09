@@ -1,29 +1,24 @@
-# Include the README and other important files
+# Include essential documentation
 include README.md
 include LICENSE
 include CONTRIBUTING.md
-include AI_ASSISTANT_GUIDE.md
-include CLAUDE.md
 
-# Include configuration files
+# Include configuration files needed by users
 include pyproject.toml
 include setup.cfg
-include pytest.ini
 include requirements.txt
-include .flake8
 
-# Include all Python packages
+# Include all Python source code
 recursive-include shedboxai *.py
 
-# Include test fixtures but exclude test code from distribution
-recursive-include tests/fixtures *.yaml *.json *.csv *.md
-exclude tests/unit
-recursive-exclude tests/unit *
-
-# Exclude development and build artifacts
+# Exclude development files
 exclude .bumpversion.cfg
 exclude .gitignore
 exclude .pre-commit-config.yaml
+exclude pytest.ini
+exclude .flake8
+recursive-exclude .github *
+recursive-exclude tests *
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
 recursive-exclude * *.pyo
@@ -31,6 +26,3 @@ recursive-exclude * *.pyd
 recursive-exclude * .DS_Store
 recursive-exclude * .pytest_cache
 recursive-exclude * *.egg-info
-recursive-exclude .github *
-exclude tox.ini
-exclude Makefile
