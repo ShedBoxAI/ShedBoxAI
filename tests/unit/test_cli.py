@@ -13,8 +13,6 @@ from unittest.mock import MagicMock, Mock, mock_open, patch
 
 import pytest
 
-# Remove global pipeline module mock - use targeted patches instead
-
 # Import the new CLI functions and exceptions
 from shedboxai.cli import (
     CLIError,
@@ -27,6 +25,8 @@ from shedboxai.cli import (
     validate_config_file,
     validate_output_file,
 )
+
+# Remove global pipeline module mock - use targeted patches instead
 
 
 class MockPipeline:
