@@ -13,9 +13,7 @@ from unittest.mock import MagicMock, Mock, mock_open, patch
 
 import pytest
 
-# Mock the Pipeline import
-mock_pipeline_module = MagicMock()
-sys.modules["shedboxai.pipeline"] = mock_pipeline_module
+# Remove global pipeline module mock - use targeted patches instead
 
 # Import the new CLI functions and exceptions
 from shedboxai.cli import (
