@@ -4,7 +4,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="shedboxai",
-    version="1.0.0",
+    version="1.0.1",
     packages=find_packages(),
     package_data={
         "shedboxai": ["data/AI_ASSISTANT_GUIDE.md"],
@@ -14,7 +14,7 @@ setup(
         "pyyaml>=6.0.1",
         "pandas>=2.0.0",
         "requests>=2.31.0",
-        "python-dotenv>=1.0.0",
+        "python-dotenv>=1.0.1",
         "pydantic>=2.0.0",
         "openai>=1.75.0",
         "networkx>=3.2.1",
