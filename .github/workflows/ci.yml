@@ -51,9 +51,15 @@ jobs:
       run: |
         isort --check-only --diff .
 
-    - name: Run tests with pytest
+    - name: Run unit tests with pytest
       run: |
-        pytest tests/ --cov=shedboxai --cov-report=xml --cov-report=term-missing -v
+        pytest tests/unit/ --cov=shedboxai --cov-report=xml --cov-report=term-missing -v
+      env:
+        SHEDBOXAI_TEST_MODE: "1"
+
+    - name: Run E2E tests with pytest
+      run: |
+        pytest tests/e2e/ -v
       env:
         SHEDBOXAI_TEST_MODE: "1"
 

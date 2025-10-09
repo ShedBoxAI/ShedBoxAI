@@ -8,6 +8,7 @@ import os
 from unittest.mock import MagicMock, Mock, patch
 
 import jinja2
+import pandas as pd
 import pytest
 
 from shedboxai.core.ai.interface import AIInterface
@@ -713,3 +714,148 @@ class TestConfigUtilities:
         prompt_config = PromptConfig(user_template="Test template", max_tokens=None)
 
         assert prompt_config.max_tokens is None
+
+
+class TestDataFrameTruthiness:
+    """Tests for DataFrame truthiness handling in Jinja2 templates (Feedback 3 - Issue 1)."""
+
+    @pytest.fixture
+    def interface(self):
+        """Create a basic interface for DataFrame testing."""
+        with patch.dict("os.environ", {"SHEDBOXAI_TEST_MODE": "1"}):
+            model_config = AIModelConfig(
+                type="rest",
+                url="https://api.test.com",
+                method="POST",
+                headers={"Authorization": "Bearer test-key"},
+                options={"model": "test-model"},
+            )
+            config = AIInterfaceConfig(model=model_config, prompts={})
+
+            with patch("shedboxai.core.ai.interface.DataSourceConnector"):
+                return AIInterface(config)
+
+    def test_has_data_test_with_non_empty_dataframe(self, interface):
+        """Test that has_data test works with non-empty DataFrames."""
+        df = pd.DataFrame({"col1": [1, 2, 3], "col2": ["a", "b", "c"]})
+
+        # Get the has_data test function
+        has_data = interface.jinja_env.tests["has_data"]
+
+        # Should return True for non-empty DataFrame
+        assert has_data(df) is True
+
+    def test_has_data_test_with_empty_dataframe(self, interface):
+        """Test that has_data test works with empty DataFrames."""
+        df = pd.DataFrame()
+
+        # Get the has_data test function
+        has_data = interface.jinja_env.tests["has_data"]
+
+        # Should return False for empty DataFrame
+        assert has_data(df) is False
+
+    def test_has_data_test_with_list(self, interface):
+        """Test that has_data test works with lists."""
+        has_data = interface.jinja_env.tests["has_data"]
+
+        # Non-empty list
+        assert has_data([1, 2, 3]) is True
+
+        # Empty list
+        assert has_data([]) is False
+
+    def test_has_data_test_with_dict(self, interface):
+        """Test that has_data test works with dictionaries."""
+        has_data = interface.jinja_env.tests["has_data"]
+
+        # Non-empty dict
+        assert has_data({"key": "value"}) is True
+
+        # Empty dict
+        assert has_data({}) is False
+
+    def test_has_data_test_with_string(self, interface):
+        """Test that has_data test works with strings."""
+        has_data = interface.jinja_env.tests["has_data"]
+
+        # Non-empty string
+        assert has_data("hello") is True
+
+        # Empty string
+        assert has_data("") is False
+
+    def test_has_data_test_with_none(self, interface):
+        """Test that has_data test works with None."""
+        has_data = interface.jinja_env.tests["has_data"]
+
+        # None should return False
+        assert has_data(None) is False
+
+    def test_has_data_test_with_numbers(self, interface):
+        """Test that has_data test works with numbers."""
+        has_data = interface.jinja_env.tests["has_data"]
+
+        # Non-zero number
+        assert has_data(42) is True
+
+        # Zero
+        assert has_data(0) is False
+
+    def test_dataframe_in_template_non_empty(self, interface):
+        """Test that DataFrames can be used in template conditions without ambiguity errors."""
+        df = pd.DataFrame({"col1": [1, 2, 3]})
+
+        # Create a template that uses the has_data test
+        template = interface.jinja_env.from_string(
+            "{% if data is has_data %}Found {{ data|length }} rows{% else %}No data{% endif %}"
+        )
+
+        # Render the template - should not raise "truth value is ambiguous" error
+        result = template.render(data=df)
+
+        # Should show "Found 3 rows"
+        assert "Found 3 rows" in result
+
+    def test_dataframe_in_template_empty(self, interface):
+        """Test that empty DataFrames work correctly in templates."""
+        df = pd.DataFrame()
+
+        # Create a template that uses the has_data test
+        template = interface.jinja_env.from_string("{% if data is has_data %}Found data{% else %}No data{% endif %}")
+
+        # Render the template
+        result = template.render(data=df)
+
+        # Should show "No data"
+        assert "No data" in result
+
+    def test_dataframe_with_defined_check(self, interface):
+        """Test that combining 'is defined' and 'is has_data' works correctly."""
+        df = pd.DataFrame({"col1": [1, 2, 3]})
+
+        # Create a template that checks both defined and has_data
+        template = interface.jinja_env.from_string(
+            "{% if data is defined and data is has_data %}Data exists{% else %}No data{% endif %}"
+        )
+
+        # Render with DataFrame
+        result = template.render(data=df)
+        assert "Data exists" in result
+
+        # Render without data variable
+        result = template.render()
+        assert "No data" in result
+
+    def test_dataframe_length_filter(self, interface):
+        """Test that the length filter works with DataFrames."""
+        df = pd.DataFrame({"col1": [1, 2, 3, 4, 5]})
+
+        # Create a template that uses the length filter
+        template = interface.jinja_env.from_string("Count: {{ data|length }}")
+
+        # Render the template
+        result = template.render(data=df)
+
+        # Should show "Count: 5"
+        assert "Count: 5" in result

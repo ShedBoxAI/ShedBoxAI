@@ -52,6 +52,7 @@ Thumbs.db
 bandit-report.json
 safety-report.json
 output.json
+output/  # E2E test output directory
 
 # Project specific
 examples/

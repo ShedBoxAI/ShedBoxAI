@@ -5,6 +5,7 @@ This module provides the abstract base class that all processing
 operation handlers must implement.
 """
 
+import logging
 from abc import ABC, abstractmethod
 from typing import Any, Dict
 
@@ -27,6 +28,7 @@ class OperationHandler(ABC):
             engine: Optional expression engine for operations that need it
         """
         self.engine = engine
+        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
     @abstractmethod
     def process(self, data: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
@@ -69,6 +71,24 @@ class OperationHandler(ABC):
         # Default implementation - subclasses can override for specific validation
         return config is not None and isinstance(config, dict)
 
+    def _log_debug(self, message: str) -> None:
+        """
+        Log a debug message.
+
+        Args:
+            message: Debug message to log
+        """
+        self.logger.debug(message)
+
+    def _log_info(self, message: str) -> None:
+        """
+        Log an info message.
+
+        Args:
+            message: Info message to log
+        """
+        self.logger.info(message)
+
     def _log_warning(self, message: str) -> None:
         """
         Log a warning message.
@@ -76,7 +96,7 @@ class OperationHandler(ABC):
         Args:
             message: Warning message to log
         """
-        print(f"Warning [{self.operation_name}]: {message}")
+        self.logger.warning(message)
 
     def _log_error(self, message: str) -> None:
         """
@@ -85,4 +105,4 @@ class OperationHandler(ABC):
         Args:
             message: Error message to log
         """
-        print(f"Error [{self.operation_name}]: {message}")
+        self.logger.error(message)

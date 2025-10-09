@@ -1,0 +1,25 @@
+data_sources:
+  order_data:
+    type: rest
+    url: http://localhost:5000/api/relationship/orders
+    method: GET
+    response_path: customers
+  product_data:
+    type: rest
+    url: http://localhost:5000/api/relationship/inventory
+    method: GET
+    response_path: products
+processing:
+  relationship_highlighting:
+    order_data:
+      derived_fields:
+      - full_address = item.address + ", " + item.city + ", " + item.state
+      conditional_highlighting:
+      - source: order_data
+        condition: item.membership_level == "Gold"
+        insight_name: gold_member
+        context: High-value customer with Gold membership
+output:
+  type: file
+  path: output/test_6_relationships.json
+  format: json

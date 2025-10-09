@@ -10,6 +10,7 @@ import os
 from typing import Any, Dict
 
 import jinja2
+import pandas as pd
 
 from ..config.models import TemplateMatchingConfig
 from .base import OperationHandler
@@ -228,3 +229,14 @@ class TemplateMatchingHandler(OperationHandler):
         self.jinja_env.filters["length"] = length_filter
         self.jinja_env.filters["first"] = first_filter
         self.jinja_env.filters["last"] = last_filter
+
+        # Register custom tests
+        def has_data(value):
+            """Check if value has data (handles DataFrames safely)"""
+            if isinstance(value, pd.DataFrame):
+                return len(value) > 0
+            elif isinstance(value, (list, dict, str)):
+                return len(value) > 0
+            return bool(value)
+
+        self.jinja_env.tests["has_data"] = has_data

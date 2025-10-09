@@ -294,6 +294,20 @@ class DataSourceConnector:
                 # Only include non-token sources in the results
                 if not source.is_token_source:
                     result[source_name] = data
+
+                    # Log what was loaded
+                    if isinstance(data, list):
+                        logger.info(f"✓ {source_name}: {len(data)} records loaded")
+                    elif hasattr(data, "__len__") and hasattr(data, "iloc"):
+                        # pandas DataFrame
+                        logger.info(f"✓ {source_name}: {len(data)} records loaded")
+                    elif isinstance(data, dict) and "error" not in data:
+                        logger.info(f"✓ {source_name}: loaded (dict with {len(data)} keys)")
+                    elif isinstance(data, dict) and "error" in data:
+                        # Error already logged above, don't duplicate
+                        pass
+                    else:
+                        logger.info(f"✓ {source_name}: loaded ({type(data).__name__})")
             except (
                 DataSourceError,
                 FileAccessError,
@@ -647,8 +661,41 @@ class DataSourceConnector:
 
         Raises:
             FileAccessError: If file cannot be accessed
-            DataSourceError: If JSON parsing fails
+            DataSourceError: If JSON parsing fails or response_path is used
         """
+        # Validate that response_path is not used with JSON files
+        if config.response_path:
+            raise DataSourceError(
+                format_config_error(
+                    "DATA_SOURCE",
+                    "response_path not supported for JSON files",
+                    f"data_sources.{source_name}.response_path",
+                    "response_path only works with type: rest (REST API sources)",
+                    (
+                        "To fix this issue, choose one of:\n\n"
+                        "1. Change type to 'rest' if this is actually an API endpoint:\n"
+                        "   data_sources:\n"
+                        f"     {source_name}:\n"
+                        "       type: rest\n"
+                        "       url: https://api.example.com/data\n"
+                        f"       response_path: {config.response_path}\n\n"
+                        "2. Remove response_path and restructure your JSON file:\n"
+                        "   Make sure your JSON file contains an array at the root level\n\n"
+                        "3. Use format_conversion to extract nested data after loading:\n"
+                        "   processing:\n"
+                        "     format_conversion:\n"
+                        f"       {source_name}:\n"
+                        "         extract_fields: ['field1', 'field2']"
+                    ),
+                    (
+                        f"data_sources:\n  {source_name}:\n"
+                        "    type: rest  # Use 'rest' for response_path\n"
+                        "    url: https://api.example.com/data\n"
+                        f"    response_path: {config.response_path}"
+                    ),
+                )
+            )
+
         file_path = Path(config.path)
 
         try:

@@ -1,0 +1,52 @@
+data_sources:
+  demographics:
+    type: rest
+    url: http://localhost:5000/api/demographics
+    method: GET
+  transactions:
+    type: rest
+    url: http://localhost:5000/api/transactions
+    method: GET
+processing:
+  template_matching:
+    demographic_report:
+      template: '# Market Demographics Report
+
+
+        ## Population Overview
+
+        - ZIP Code: {{ demographics.zip_code }}
+
+        - Total Population: {{ demographics.population }}
+
+        - Median Household Income: ${{ demographics.median_household_income }}
+
+        - Median Age: {{ demographics.median_age }} years
+
+
+        ## Transaction Summary
+
+        - Total Transactions: {{ transactions|length }}
+
+        {% if transactions %}
+
+        - Average Transaction: ${{ (transactions|map(attribute=''amount'')|list|sum
+        / transactions|length)|round(2) }}
+
+        {% endif %}
+
+
+        ## Key Insights
+
+        {% for age_group, percentage in demographics.age_distribution.items() %}
+
+        - {{ age_group.replace(''_'', '' '').title() }}: {{ (percentage * 100)|round(1)
+        }}%
+
+        {% endfor %}
+
+        '
+output:
+  type: file
+  path: output/test_7_template_matching.json
+  format: json

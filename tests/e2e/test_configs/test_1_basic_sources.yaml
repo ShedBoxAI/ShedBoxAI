@@ -1,0 +1,13 @@
+data_sources:
+  transactions:
+    type: rest
+    url: http://localhost:5000/api/transactions
+    method: GET
+  demographics:
+    type: rest
+    url: http://localhost:5000/api/demographics
+    method: GET
+output:
+  type: file
+  path: output/test_1_basic_sources.json
+  format: json

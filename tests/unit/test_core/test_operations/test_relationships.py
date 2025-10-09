@@ -593,26 +593,24 @@ class TestRelationshipHighlightingHandler:
         # Should handle dict config conversion
         assert result
 
-    def test_invalid_dict_config_logs_warning(self, capsys):
+    def test_invalid_dict_config_logs_warning(self, caplog):
         """Test that invalid dict config logs warning - NOW FIXED."""
         data = {"items": [{"id": 1}]}
         config = {"test": {"invalid_field": "value"}}
 
         result = self.handler.process(data, config)
-        captured = capsys.readouterr()
-        assert "Invalid relationship configuration" in captured.out
-        assert "Unknown fields" in captured.out
-        assert "invalid_field" in captured.out
+        assert "Invalid relationship configuration" in caplog.text
+        assert "Unknown fields" in caplog.text
+        assert "invalid_field" in caplog.text
 
-    def test_invalid_config_type_logs_warning(self, capsys):
+    def test_invalid_config_type_logs_warning(self, caplog):
         """Test that invalid config type logs warning."""
         data = {"items": [{"id": 1}]}
         config = {"test": "invalid_string_config"}
 
         result = self.handler.process(data, config)
-        captured = capsys.readouterr()
-        assert "Invalid relationship configuration" in captured.out
-        assert "expected dict or RelationshipConfig" in captured.out
+        assert "Invalid relationship configuration" in caplog.text
+        assert "expected dict or RelationshipConfig" in caplog.text
 
     # Bug Detection Tests - These should expose real bugs
     def test_jsonpath_import_missing(self):

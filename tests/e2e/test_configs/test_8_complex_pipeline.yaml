@@ -1,0 +1,44 @@
+data_sources:
+  transactions:
+    type: rest
+    url: http://localhost:5000/api/transactions
+    method: GET
+  demographics:
+    type: rest
+    url: http://localhost:5000/api/demographics
+    method: GET
+processing:
+  contextual_filtering:
+    transactions:
+    - field: amount
+      condition: '> 50'
+      new_name: significant_transactions
+  format_conversion:
+    significant_transactions:
+      extract_fields:
+      - customer_id
+      - amount
+      - transaction_type
+      - date
+  content_summarization:
+    significant_transactions:
+      method: statistical
+      fields:
+      - amount
+      summarize:
+      - mean
+      - max
+      - count
+  advanced_operations:
+    monthly_summary:
+      source: significant_transactions
+      group_by: transaction_type
+      aggregate:
+        total_revenue: SUM(amount)
+        avg_transaction: AVG(amount)
+        count: COUNT(*)
+      sort: -total_revenue
+output:
+  type: file
+  path: output/test_8_complex_pipeline.json
+  format: json

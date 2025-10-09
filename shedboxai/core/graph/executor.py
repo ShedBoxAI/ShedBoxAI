@@ -235,7 +235,10 @@ graph:
             InvalidConfigurationError: If operation configuration is invalid
             OperationExecutionError: If an operation fails during execution
         """
+        import logging
+
         result = data.copy()
+        logger = logging.getLogger(__name__)
 
         # Default linear execution order
         default_order = [
@@ -247,6 +250,15 @@ graph:
             "template_matching",
         ]
 
+        # Count configured operations
+        configured_ops = [op for op in default_order if getattr(processor_config, op, None)]
+
+        if configured_ops:
+            logger.info("=" * 60)
+            logger.info(f"PROCESSING PIPELINE ({len(configured_ops)} operations)")
+            logger.info("=" * 60)
+
+        stage_num = 0
         for operation in default_order:
             config = getattr(processor_config, operation, None)
             if config is None:
@@ -255,6 +267,16 @@ graph:
             handler_class = self.operation_handlers.get(operation)
             if not handler_class:
                 continue
+
+            stage_num += 1
+
+            # Log stage start
+            logger.info("")
+            logger.info(f"Stage {stage_num}/{len(configured_ops)}: {operation}")
+            logger.info("-" * 60)
+
+            # Track what exists before processing
+            before_keys = set(result.keys())
 
             # Create handler and process
             handler = handler_class(self.engine)
@@ -277,6 +299,27 @@ graph:
                     f"Error executing operation '{operation}': {str(e)}",
                     suggestion="Check your input data and operation configuration for compatibility issues",
                 ) from e
+
+            # Track what was created
+            after_keys = set(result.keys())
+            new_keys = after_keys - before_keys
+
+            if new_keys:
+                for key in sorted(new_keys):
+                    if isinstance(result[key], list):
+                        logger.info(f"  → Created '{key}': {len(result[key])} records")
+                    elif isinstance(result[key], dict):
+                        logger.info(f"  → Created '{key}': dict with {len(result[key])} keys")
+                    else:
+                        logger.info(f"  → Created '{key}': {type(result[key]).__name__}")
+            else:
+                logger.debug("  No new variables created")
+
+        if configured_ops:
+            logger.info("")
+            logger.info("=" * 60)
+            logger.info("PROCESSING COMPLETE")
+            logger.info("=" * 60)
 
         return result
 

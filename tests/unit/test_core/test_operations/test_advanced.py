@@ -17,7 +17,12 @@ from unittest.mock import Mock
 import pytest
 
 from shedboxai.core.config.models import AdvancedOperationConfig
-from shedboxai.core.operations.advanced import AdvancedOperationsHandler
+from shedboxai.core.exceptions import ConfigurationError
+from shedboxai.core.operations.advanced import (
+    AdvancedOperationsHandler,
+    validate_aggregation_expression,
+    validate_field_exists,
+)
 
 
 class TestAdvancedOperationsHandler:
@@ -426,49 +431,74 @@ class TestAdvancedOperationsHandler:
         assert "grouped" in result
         assert len(result["grouped"]) == 1
 
-    def test_invalid_dict_config_logs_warning(self, capsys):
+    def test_invalid_dict_config_logs_warning(self, caplog):
         """Test that invalid dict config logs warning."""
         data = {"items": [{"value": 10}]}
         config = {"result": {"invalid_field": "value"}}
 
         result = self.handler.process(data, config)
-        captured = capsys.readouterr()
-        assert "Invalid advanced operation configuration" in captured.out
+        assert "Invalid advanced operation configuration" in caplog.text
         assert result == data
 
-    def test_invalid_config_type_logs_warning(self, capsys):
+    def test_invalid_config_type_logs_warning(self, caplog):
         """Test that invalid config type logs warning."""
         data = {"items": [{"value": 10}]}
         config = {"result": "invalid_string_config"}
 
         result = self.handler.process(data, config)
-        captured = capsys.readouterr()
-        assert "Invalid advanced operation configuration" in captured.out
-        assert "expected dict or AdvancedOperationConfig" in captured.out
+        assert "Invalid advanced operation configuration" in caplog.text
+        assert "expected dict or AdvancedOperationConfig" in caplog.text
         assert result == data
 
     # Bug Detection Tests - These should expose real bugs
-    def test_malformed_aggregation_expressions(self, capsys):
-        """Test malformed aggregation expressions."""
+    def test_malformed_aggregation_expressions(self):
+        """Test malformed aggregation expressions - NOW PROPERLY VALIDATED."""
         data = {"items": [{"category": "A", "value": 10}, {"category": "A", "value": 20}]}
+
+        # Test with invalid function name
         config = {
             "result": AdvancedOperationConfig(
                 source="items",
                 group_by="category",
-                aggregate={
-                    "bad1": "INVALID_FUNC(value)",
-                    "bad2": "SUM value",  # Missing parentheses
-                    "bad3": "COUNT(",  # Malformed
-                    "good": "SUM(value)",
-                },
+                aggregate={"bad1": "INVALID_FUNC(value)"},
             )
         }
+        with pytest.raises(ConfigurationError, match="Invalid aggregation expression"):
+            self.handler.process(data, config)
 
+        # Test with missing parentheses
+        config = {
+            "result": AdvancedOperationConfig(
+                source="items",
+                group_by="category",
+                aggregate={"bad2": "SUM value"},
+            )
+        }
+        with pytest.raises(ConfigurationError, match="Invalid aggregation expression"):
+            self.handler.process(data, config)
+
+        # Test with malformed expression
+        config = {
+            "result": AdvancedOperationConfig(
+                source="items",
+                group_by="category",
+                aggregate={"bad3": "COUNT("},
+            )
+        }
+        with pytest.raises(ConfigurationError, match="Invalid aggregation expression"):
+            self.handler.process(data, config)
+
+        # Test with valid expression - should work
+        config = {
+            "result": AdvancedOperationConfig(
+                source="items",
+                group_by="category",
+                aggregate={"good": "SUM(value)"},
+            )
+        }
         result = self.handler.process(data, config)
-        # Should handle malformed expressions gracefully
-        group = result["result"][0]
-        assert "good" in group  # Good expression should work
-        # Bad expressions should be None or generate warnings
+        assert "result" in result
+        assert result["result"][0]["good"] == 30.0
 
     def test_aggregation_with_non_numeric_fields(self):
         """Test numeric aggregations on non-numeric fields."""
@@ -564,3 +594,249 @@ class TestAdvancedOperationsHandler:
         # Should handle mixed types gracefully without crashing
         result = self.handler.process(data, config)
         assert len(result["sorted"]) == 4
+
+
+class TestAggregationValidation:
+    """Tests for aggregation expression validation (Feedback 3 - Issue 2)."""
+
+    def test_simple_sum_aggregation_passes(self):
+        """Test that simple SUM aggregation passes validation."""
+        # Should not raise exception
+        validate_aggregation_expression("SUM(amount)")
+
+    def test_simple_avg_aggregation_passes(self):
+        """Test that simple AVG aggregation passes validation."""
+        validate_aggregation_expression("AVG(price)")
+
+    def test_simple_count_star_passes(self):
+        """Test that COUNT(*) passes validation."""
+        validate_aggregation_expression("COUNT(*)")
+
+    def test_simple_count_field_passes(self):
+        """Test that COUNT(field) passes validation."""
+        validate_aggregation_expression("COUNT(user_id)")
+
+    def test_simple_min_aggregation_passes(self):
+        """Test that simple MIN aggregation passes validation."""
+        validate_aggregation_expression("MIN(created_date)")
+
+    def test_simple_max_aggregation_passes(self):
+        """Test that simple MAX aggregation passes validation."""
+        validate_aggregation_expression("MAX(quantity)")
+
+    def test_simple_median_aggregation_passes(self):
+        """Test that simple MEDIAN aggregation passes validation."""
+        validate_aggregation_expression("MEDIAN(value)")
+
+    def test_simple_std_aggregation_passes(self):
+        """Test that simple STD aggregation passes validation."""
+        validate_aggregation_expression("STD(measurement)")
+
+    def test_arithmetic_expression_fails(self):
+        """Test that arithmetic expressions are rejected."""
+        with pytest.raises(ConfigurationError, match="Invalid aggregation expression"):
+            validate_aggregation_expression("SUM(amount) / 100")
+
+    def test_multiple_arithmetic_fails(self):
+        """Test that complex arithmetic expressions are rejected."""
+        with pytest.raises(ConfigurationError, match="Invalid aggregation expression"):
+            validate_aggregation_expression("SUM(price) * SUM(quantity)")
+
+    def test_case_when_statement_fails(self):
+        """Test that CASE WHEN statements are rejected."""
+        with pytest.raises(ConfigurationError, match="Invalid aggregation expression"):
+            validate_aggregation_expression("CASE WHEN amount > 100 THEN 'high' ELSE 'low' END")
+
+    def test_count_distinct_fails(self):
+        """Test that COUNT DISTINCT is rejected."""
+        with pytest.raises(ConfigurationError, match="Invalid aggregation expression"):
+            validate_aggregation_expression("COUNT(DISTINCT user_id)")
+
+    def test_nested_functions_fail(self):
+        """Test that nested functions are rejected."""
+        with pytest.raises(ConfigurationError, match="Invalid aggregation expression"):
+            validate_aggregation_expression("AVG(SUM(amount))")
+
+    def test_whitespace_is_handled(self):
+        """Test that whitespace doesn't break validation."""
+        # These should pass
+        validate_aggregation_expression("  SUM(amount)  ")
+        validate_aggregation_expression("COUNT(  *  )")
+
+    def test_error_message_suggests_workaround(self):
+        """Test that error message includes workaround suggestion."""
+        try:
+            validate_aggregation_expression("SUM(x)/100")
+            pytest.fail("Expected ConfigurationError")
+        except ConfigurationError as e:
+            error_msg = str(e)
+            assert "SUM(x)/100" in error_msg
+            assert "Only simple aggregations are supported" in error_msg
+            assert "Workaround" in error_msg
+            assert "derived fields" in error_msg
+            assert "relationship_highlighting" in error_msg
+
+    def test_error_message_lists_allowed_functions(self):
+        """Test that error message lists allowed aggregation functions."""
+        try:
+            validate_aggregation_expression("INVALID(field)")
+            pytest.fail("Expected ConfigurationError")
+        except ConfigurationError as e:
+            error_msg = str(e)
+            assert "SUM(field)" in error_msg
+            assert "AVG(field)" in error_msg
+            assert "COUNT(*)" in error_msg
+            assert "MIN(field)" in error_msg
+            assert "MAX(field)" in error_msg
+
+    def test_validation_integrated_in_handler(self):
+        """Test that validation is triggered during handler processing."""
+        handler = AdvancedOperationsHandler()
+        data = {
+            "transactions": [
+                {"category": "A", "amount": 100},
+                {"category": "A", "amount": 200},
+            ]
+        }
+        config = {
+            "summary": AdvancedOperationConfig(
+                source="transactions",
+                group_by="category",
+                aggregate={"calculated": "SUM(amount) / 100"},  # Invalid expression
+            )
+        }
+
+        # Should raise ConfigurationError when trying to process
+        with pytest.raises(ConfigurationError, match="Invalid aggregation expression"):
+            handler.process(data, config)
+
+    def test_multiple_simple_aggregations_pass(self):
+        """Test that multiple simple aggregations all pass validation."""
+        handler = AdvancedOperationsHandler()
+        data = {
+            "sales": [
+                {"region": "North", "amount": 100, "quantity": 5},
+                {"region": "North", "amount": 200, "quantity": 10},
+            ]
+        }
+        config = {
+            "summary": AdvancedOperationConfig(
+                source="sales",
+                group_by="region",
+                aggregate={
+                    "total_amount": "SUM(amount)",
+                    "avg_amount": "AVG(amount)",
+                    "total_quantity": "SUM(quantity)",
+                    "count": "COUNT(*)",
+                },
+            )
+        }
+
+        # Should not raise any exception
+        result = handler.process(data, config)
+        assert "summary" in result
+        assert len(result["summary"]) == 1
+        assert result["summary"][0]["total_amount"] == 300.0
+        assert result["summary"][0]["avg_amount"] == 150.0
+
+
+class TestFieldValidation:
+    """Tests for field validation with suggestions (Feedback 3 - Issue 3)."""
+
+    def test_field_exists_validation_passes(self):
+        """Test that validation passes when field exists."""
+        available_fields = ["id", "name", "email", "age"]
+        # Should not raise exception
+        validate_field_exists("name", available_fields, "users")
+
+    def test_field_not_found_raises_error(self):
+        """Test that missing field raises ConfigurationError."""
+        available_fields = ["id", "name", "email"]
+        with pytest.raises(ConfigurationError, match="Field 'username' not found"):
+            validate_field_exists("username", available_fields, "users")
+
+    def test_error_message_lists_available_fields(self):
+        """Test that error message lists all available fields."""
+        available_fields = ["id", "name", "email"]
+        try:
+            validate_field_exists("username", available_fields, "users")
+            pytest.fail("Expected ConfigurationError")
+        except ConfigurationError as e:
+            error_msg = str(e)
+            assert "Available fields: id, name, email" in error_msg
+
+    def test_error_message_suggests_similar_field(self):
+        """Test that error message suggests similar field name."""
+        available_fields = ["id", "username", "email", "age"]
+        try:
+            validate_field_exists("user_name", available_fields, "users")
+            pytest.fail("Expected ConfigurationError")
+        except ConfigurationError as e:
+            error_msg = str(e)
+            assert "Did you mean: 'username'?" in error_msg
+
+    def test_no_suggestion_when_no_similar_field(self):
+        """Test that no suggestion is made when no similar field exists."""
+        available_fields = ["id", "name", "email"]
+        try:
+            validate_field_exists("completely_different", available_fields, "users")
+            pytest.fail("Expected ConfigurationError")
+        except ConfigurationError as e:
+            error_msg = str(e)
+            assert "Did you mean" not in error_msg
+            assert "Available fields:" in error_msg
+
+    def test_case_sensitive_validation(self):
+        """Test that field validation is case-sensitive."""
+        available_fields = ["id", "Name", "email"]
+        # "name" doesn't exist (only "Name" exists)
+        with pytest.raises(ConfigurationError, match="Field 'name' not found"):
+            validate_field_exists("name", available_fields, "users")
+
+    def test_suggestion_with_typo(self):
+        """Test that typos trigger helpful suggestions."""
+        available_fields = ["transaction_id", "amount", "timestamp"]
+        try:
+            validate_field_exists("transaction_id", available_fields, "transactions")
+            # Should pass without error
+        except ConfigurationError:
+            pytest.fail("Should not raise error for exact match")
+
+        try:
+            validate_field_exists("transactoin_id", available_fields, "transactions")  # Typo
+            pytest.fail("Expected ConfigurationError")
+        except ConfigurationError as e:
+            error_msg = str(e)
+            # Should suggest the correct field
+            assert "Did you mean: 'transaction_id'?" in error_msg
+
+    def test_source_name_in_error_message(self):
+        """Test that source name appears in error message."""
+        available_fields = ["id", "value"]
+        try:
+            validate_field_exists("missing_field", available_fields, "my_source")
+            pytest.fail("Expected ConfigurationError")
+        except ConfigurationError as e:
+            error_msg = str(e)
+            assert "my_source" in error_msg
+
+    def test_empty_available_fields(self):
+        """Test validation with empty available fields list."""
+        available_fields = []
+        with pytest.raises(ConfigurationError, match="Field 'any_field' not found"):
+            validate_field_exists("any_field", available_fields, "empty_source")
+
+    def test_special_characters_in_field_names(self):
+        """Test that fields with special characters are handled correctly."""
+        available_fields = ["id", "user_name", "email-address", "created.at"]
+        # Exact match should work
+        validate_field_exists("email-address", available_fields, "users")
+
+        # Typo should still suggest
+        try:
+            validate_field_exists("email_address", available_fields, "users")  # Different separator
+            pytest.fail("Expected ConfigurationError")
+        except ConfigurationError as e:
+            error_msg = str(e)
+            # May or may not suggest depending on similarity threshold
+            assert "Field 'email_address' not found" in error_msg

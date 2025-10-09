@@ -261,26 +261,24 @@ Low balance warning: ${{ user.balance }}
         result = self.handler.process(data, config)
         assert result["result"] == "Hello test!"
 
-    def test_invalid_dict_config_logs_warning(self, capsys):
+    def test_invalid_dict_config_logs_warning(self, caplog):
         """Test that invalid dict config logs warning - NOW FIXED."""
         data = {"name": "test"}
         config = {"result": {"invalid_field": "value"}}
 
         result = self.handler.process(data, config)
-        captured = capsys.readouterr()
         # BUG 2 FIX: Check stdout for _log_warning output
-        assert "Invalid template matching configuration" in captured.out
+        assert "Invalid template matching configuration" in caplog.text
 
-    def test_invalid_config_type_logs_warning(self, capsys):
+    def test_invalid_config_type_logs_warning(self, caplog):
         """Test that invalid config type logs warning - NOW FIXED."""
         data = {"name": "test"}
         config = {"result": "invalid_string_config"}
 
         result = self.handler.process(data, config)
-        captured = capsys.readouterr()
         # BUG 3 FIX: Check stdout for _log_warning output
-        assert "Invalid template matching configuration" in captured.out
-        assert "expected dict or TemplateMatchingConfig" in captured.out
+        assert "Invalid template matching configuration" in caplog.text
+        assert "expected dict or TemplateMatchingConfig" in caplog.text
 
     # Custom Filters Tests
     def test_custom_currency_filter(self):

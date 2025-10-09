@@ -1,0 +1,14 @@
+data_sources:
+  transactions:
+    type: rest
+    url: http://localhost:5000/api/transactions
+    method: GET
+processing:
+  format_conversion:
+    transactions:
+      template: Transaction {{item.transaction_id}} for ${{item.amount}} on {{item.date}}
+        - {{item.transaction_type}}
+output:
+  type: file
+  path: output/test_3a_template_processing.json
+  format: json
