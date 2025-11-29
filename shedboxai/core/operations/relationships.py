@@ -20,6 +20,12 @@ class RelationshipHighlightingHandler(OperationHandler):
     def operation_name(self) -> str:
         return "relationship_highlighting"
 
+    def _convert_dataframes(self, result: Dict[str, Any]) -> None:
+        """Convert any DataFrame values in result to list of dicts in place."""
+        for key, value in result.items():
+            if hasattr(value, "to_dict") and callable(value.to_dict):
+                result[key] = value.to_dict("records")
+
     def process(self, data: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
         """
         Apply relationship highlighting to the data.
@@ -32,6 +38,9 @@ class RelationshipHighlightingHandler(OperationHandler):
             Data dictionary with relationship analysis results
         """
         result = data.copy()
+
+        # Convert any DataFrames to list of dicts for processing
+        self._convert_dataframes(result)
 
         # Process each source in the config
         for source_name, relationship_config in config.items():

@@ -123,6 +123,10 @@ class AdvancedOperationsHandler(OperationHandler):
 
             source_data = result[source]
 
+            # Convert DataFrames to list of dicts for processing
+            if hasattr(source_data, "to_dict") and callable(source_data.to_dict):
+                source_data = source_data.to_dict("records")
+
             # BUG 2 FIX: Handle non-list data for sorting/limiting operations
             if not isinstance(source_data, list):
                 # For non-list data, create result if any operation is specified

@@ -42,6 +42,11 @@ class FormatConversionHandler(OperationHandler):
 
             source_data = result[source_name]
 
+            # Convert DataFrames to list of dicts for processing
+            if hasattr(source_data, "to_dict") and callable(source_data.to_dict):
+                source_data = source_data.to_dict("records")
+                result[source_name] = source_data
+
             # Ensure conversion_config is a FormatConversionConfig
             if not isinstance(conversion_config, FormatConversionConfig):
                 if isinstance(conversion_config, dict):
