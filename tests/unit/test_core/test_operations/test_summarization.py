@@ -377,3 +377,50 @@ class TestContentSummarizationHandler:
         # Should handle non-dict items gracefully
         result = self.handler.process(data, config)
         assert "mixed_types_summary" in result
+
+    def test_dataframe_source_is_converted_to_list(self):
+        """Test that pandas DataFrame source data is converted to list of dicts.
+
+        This tests the fix for DataFrame handling where content_summarization
+        would silently skip DataFrame sources instead of processing them.
+        """
+        import pandas as pd
+
+        # Create DataFrame similar to what CSV loading produces
+        df = pd.DataFrame(
+            [
+                {"product": "Widget", "price": 10.0, "quantity": 5},
+                {"product": "Gadget", "price": 20.0, "quantity": 3},
+                {"product": "Gizmo", "price": 15.0, "quantity": 8},
+                {"product": "Thing", "price": 25.0, "quantity": 2},
+            ]
+        )
+        data = {"inventory": df}
+
+        config = {
+            "inventory": ContentSummarizationConfig(
+                method="statistical",
+                fields=["price", "quantity"],
+                summarize=["mean", "sum", "min", "max", "count"],
+            )
+        }
+
+        result = self.handler.process(data, config)
+
+        # Should have summary results
+        assert "inventory_summary" in result
+        summary = result["inventory_summary"]
+
+        # Verify price statistics
+        assert summary["price_mean"] == 17.5  # (10 + 20 + 15 + 25) / 4
+        assert summary["price_sum"] == 70.0
+        assert summary["price_min"] == 10.0
+        assert summary["price_max"] == 25.0
+        assert summary["price_count"] == 4
+
+        # Verify quantity statistics
+        assert summary["quantity_mean"] == 4.5  # (5 + 3 + 8 + 2) / 4
+        assert summary["quantity_sum"] == 18.0
+        assert summary["quantity_min"] == 2.0
+        assert summary["quantity_max"] == 8.0
+        assert summary["quantity_count"] == 4

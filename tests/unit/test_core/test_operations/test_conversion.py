@@ -393,3 +393,61 @@ class TestFormatConversionHandler:
         assert result["users"] != data["users"]
         assert len(result["users"][0]) == 2  # Only id and name
         assert len(data["users"][0]) == 3  # id, name, and email
+
+    def test_dataframe_source_extract_fields(self):
+        """Test that pandas DataFrame source data is converted for field extraction.
+
+        This tests the fix for DataFrame handling where format_conversion
+        would fail on DataFrame sources loaded from CSV files.
+        """
+        import pandas as pd
+
+        # Create DataFrame similar to what CSV loading produces
+        df = pd.DataFrame(
+            [
+                {"id": 1, "name": "Alice", "email": "alice@example.com", "age": 30},
+                {"id": 2, "name": "Bob", "email": "bob@example.com", "age": 25},
+                {"id": 3, "name": "Carol", "email": "carol@example.com", "age": 35},
+            ]
+        )
+        data = {"users": df}
+
+        config = {"users": FormatConversionConfig(extract_fields=["id", "name", "age"])}
+
+        result = self.handler.process(data, config)
+
+        # Verify DataFrame was converted and fields were extracted
+        assert isinstance(result["users"], list)
+        assert len(result["users"]) == 3
+
+        # Verify only specified fields are present
+        for user in result["users"]:
+            assert set(user.keys()) == {"id", "name", "age"}
+            assert "email" not in user
+
+        # Verify data integrity
+        assert result["users"][0]["name"] == "Alice"
+        assert result["users"][1]["name"] == "Bob"
+        assert result["users"][2]["name"] == "Carol"
+
+    def test_dataframe_source_template_processing(self):
+        """Test that pandas DataFrame source data works with template processing."""
+        import pandas as pd
+
+        df = pd.DataFrame(
+            [
+                {"name": "Alice", "role": "Engineer"},
+                {"name": "Bob", "role": "Manager"},
+            ]
+        )
+        data = {"employees": df}
+
+        config = {"employees": FormatConversionConfig(template="{{item.name}} is a {{item.role}}")}
+
+        result = self.handler.process(data, config)
+
+        # Verify DataFrame was converted and templates were processed
+        assert isinstance(result["employees"], list)
+        assert len(result["employees"]) == 2
+        assert result["employees"][0] == "Alice is a Engineer"
+        assert result["employees"][1] == "Bob is a Manager"

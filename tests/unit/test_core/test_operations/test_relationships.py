@@ -681,3 +681,68 @@ class TestRelationshipHighlightingHandler:
         # Should handle all operations without crashing
         result = self.handler.process(data, config)
         assert result
+
+    def test_dataframe_source_is_converted_to_list(self):
+        """Test that pandas DataFrame source data is converted to list of dicts.
+
+        This tests the fix for DataFrame handling where relationship_highlighting
+        would silently skip DataFrame sources instead of processing them.
+        """
+        import pandas as pd
+
+        # Create DataFrames similar to what CSV loading produces
+        users_df = pd.DataFrame(
+            [
+                {"id": 1, "name": "Alice", "department": "Engineering"},
+                {"id": 2, "name": "Bob", "department": "Sales"},
+                {"id": 3, "name": "Carol", "department": "Engineering"},
+            ]
+        )
+        orders_df = pd.DataFrame(
+            [
+                {"order_id": 101, "user_id": 1, "amount": 500},
+                {"order_id": 102, "user_id": 2, "amount": 300},
+                {"order_id": 103, "user_id": 1, "amount": 700},
+            ]
+        )
+        data = {"users": users_df, "orders": orders_df}
+
+        config = {
+            "test": RelationshipConfig(
+                link_fields=[
+                    {
+                        "source": "orders",
+                        "source_field": "user_id",
+                        "to": "users",
+                        "target_field": "id",
+                    }
+                ],
+                pattern_detection={
+                    "dept_frequency": {
+                        "type": "frequency",
+                        "source": "users",
+                        "field": "department",
+                        "threshold": 2,
+                    }
+                },
+            )
+        }
+
+        result = self.handler.process(data, config)
+
+        # Verify DataFrames were converted to lists
+        assert isinstance(result["users"], list)
+        assert isinstance(result["orders"], list)
+
+        # Verify link fields worked - orders should have users_info
+        for order in result["orders"]:
+            if order["user_id"] == 1:
+                assert "users_info" in order
+                assert order["users_info"]["name"] == "Alice"
+            elif order["user_id"] == 2:
+                assert "users_info" in order
+                assert order["users_info"]["name"] == "Bob"
+
+        # Verify pattern detection worked
+        assert "users_patterns" in result
+        assert result["users_patterns"]["patterns"]["Engineering"] == 2

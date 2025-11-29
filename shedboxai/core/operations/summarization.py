@@ -37,6 +37,11 @@ class ContentSummarizationHandler(OperationHandler):
                 continue
 
             source_data = result[source_name]
+
+            # Convert DataFrames to list of dicts for processing
+            if hasattr(source_data, "to_dict") and callable(source_data.to_dict):
+                source_data = source_data.to_dict("records")
+
             if not isinstance(source_data, list):
                 continue
 
