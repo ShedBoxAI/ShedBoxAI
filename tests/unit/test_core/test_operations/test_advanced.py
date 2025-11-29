@@ -595,6 +595,84 @@ class TestAdvancedOperationsHandler:
         result = self.handler.process(data, config)
         assert len(result["sorted"]) == 4
 
+    def test_dataframe_source_is_converted_to_list(self):
+        """Test that pandas DataFrame source data is converted to list of dicts.
+
+        This tests the fix for GitHub issue #4 where advanced_operations
+        would return raw source data instead of aggregated results when
+        the input was a DataFrame (as loaded from CSV files via pandas).
+        """
+        import pandas as pd
+
+        # Create DataFrame similar to what CSV loading produces
+        df = pd.DataFrame(
+            [
+                {"category": "Electronics", "amount": 100.0},
+                {"category": "Electronics", "amount": 200.0},
+                {"category": "Clothing", "amount": 50.0},
+                {"category": "Clothing", "amount": 75.0},
+                {"category": "Home", "amount": 150.0},
+            ]
+        )
+        data = {"sales": df}
+
+        config = {
+            "category_totals": AdvancedOperationConfig(
+                source="sales",
+                group_by="category",
+                aggregate={"total": "SUM(amount)", "count": "COUNT(*)"},
+                sort="-total",
+            )
+        }
+
+        result = self.handler.process(data, config)
+
+        # Should have 3 aggregated groups, not 5 raw rows
+        assert "category_totals" in result
+        assert len(result["category_totals"]) == 3
+
+        # Verify aggregation was performed correctly
+        groups = {item["category"]: item for item in result["category_totals"]}
+        assert groups["Electronics"]["total"] == 300.0
+        assert groups["Electronics"]["count"] == 2
+        assert groups["Clothing"]["total"] == 125.0
+        assert groups["Clothing"]["count"] == 2
+        assert groups["Home"]["total"] == 150.0
+        assert groups["Home"]["count"] == 1
+
+        # Verify sorting (descending by total)
+        totals = [item["total"] for item in result["category_totals"]]
+        assert totals == sorted(totals, reverse=True)
+
+    def test_dataframe_source_sort_only(self):
+        """Test DataFrame source with sort-only operation (no grouping)."""
+        import pandas as pd
+
+        df = pd.DataFrame(
+            [
+                {"name": "Alice", "score": 85},
+                {"name": "Bob", "score": 92},
+                {"name": "Carol", "score": 78},
+            ]
+        )
+        data = {"students": df}
+
+        config = {
+            "sorted_students": AdvancedOperationConfig(
+                source="students",
+                sort="-score",
+            )
+        }
+
+        result = self.handler.process(data, config)
+
+        assert "sorted_students" in result
+        assert len(result["sorted_students"]) == 3
+        # Verify sorted by score descending
+        assert result["sorted_students"][0]["name"] == "Bob"
+        assert result["sorted_students"][1]["name"] == "Alice"
+        assert result["sorted_students"][2]["name"] == "Carol"
+
 
 class TestAggregationValidation:
     """Tests for aggregation expression validation (Feedback 3 - Issue 2)."""
