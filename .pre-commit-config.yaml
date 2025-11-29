@@ -15,21 +15,12 @@ repos:
       - id: black
         language_version: python3
         args: [--line-length=120]
-      - id: black
-        name: black-check (pre-push)
-        language_version: python3
-        args: [--check, --diff, --line-length=120]
-        stages: [pre-push]
 
   - repo: https://github.com/pycqa/isort
     rev: 5.12.0
     hooks:
       - id: isort
         args: [--profile=black, --line-length=120]
-      - id: isort
-        name: isort-check (pre-push)
-        args: [--check-only, --diff, --profile=black, --line-length=120]
-        stages: [pre-push]
 
   - repo: https://github.com/pycqa/flake8
     rev: 6.1.0
@@ -39,10 +30,27 @@ repos:
 
   - repo: local
     hooks:
+      - id: black-check
+        name: black-check (pre-push)
+        entry: black
+        language: system
+        args: [--check, --diff, .]
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: isort-check
+        name: isort-check (pre-push)
+        entry: isort
+        language: system
+        args: [--check-only, --diff, .]
+        pass_filenames: false
+        stages: [pre-push]
+
       - id: pytest-check
-        name: pytest-check (pre-push)
-        entry: bash -c 'source .venv/bin/activate && pytest tests/ -x -v --tb=short'
+        name: pytest-check
+        entry: pytest
         language: system
         pass_filenames: false
         always_run: true
+        args: [tests/, -x, -v, --tb=short]
         stages: [pre-push]
