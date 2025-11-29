@@ -2,6 +2,13 @@
 
 **You are now a ShedBoxAI configuration expert. Use this cheatsheet to generate accurate YAML configurations for users.**
 
+## Quick Gotchas (Read First!)
+- **Sort field**: Must match aggregate OUTPUT key, not source field (use `-total_revenue` not `-amount`)
+- **COUNT**: `COUNT(*)` = total rows; `COUNT(field)` = non-null values only
+- **Pipeline order**: Operations always run in fixed order regardless of YAML order: filtering → conversion → summarization → relationships → advanced → templates
+- **Null group_by**: Rows with null values in `group_by` field are silently skipped
+- **Fan-out naming**: `for_each: "users"` creates singular `{{ user }}` variable (strips trailing 's')
+
 ## Your Mission
 Generate ShedBoxAI YAML configs that:
 - Read data from multiple sources (CSV, JSON, APIs, etc.)
@@ -78,21 +85,7 @@ Every ShedBoxAI config has these sections:
 
 ### Supported Aggregation Functions
 
-**Allowed aggregations** (simple only):
-```yaml
-advanced_operations:
-  summary:
-    source: transactions
-    group_by: category
-    aggregate:
-      total: "SUM(amount)"        # ✅
-      average: "AVG(price)"       # ✅
-      count: "COUNT(*)"           # ✅
-      minimum: "MIN(date)"        # ✅
-      maximum: "MAX(quantity)"    # ✅
-      median: "MEDIAN(value)"     # ✅
-      std_dev: "STD(measurement)" # ✅
-```
+**Allowed**: `SUM`, `AVG`, `COUNT(*)`, `COUNT(field)`, `MIN`, `MAX`, `MEDIAN`, `STD` — see Advanced Operations section for full details.
 
 **Not supported** (complex expressions):
 ```yaml
@@ -287,11 +280,11 @@ data_sources:
     token_source: "auth_endpoint"
 ```
 
-### Inline Data
+### Inline Data (Test Data)
 ```yaml
 data_sources:
   sample_data:
-    type: csv
+    type: csv  # Note: 'data' field uses YAML list syntax, not CSV format
     data:
       - name: "John"
         age: 30
@@ -305,15 +298,17 @@ data_sources:
 
 ## 2. Processing Operations
 
-ShedBoxAI provides 6 operation types with specific functions:
+ShedBoxAI provides 6 operation types with specific functions.
 
-### Operation Types
+**Fixed Execution Order**: Operations always run in this order regardless of YAML order:
 1. **contextual_filtering** - Filter data based on conditions
 2. **format_conversion** - Extract fields and apply templates
 3. **content_summarization** - Statistical analysis
 4. **relationship_highlighting** - Join data and detect patterns
 5. **advanced_operations** - Group, aggregate, sort, limit
 6. **template_matching** - Jinja2 template processing
+
+Use `graph` processing mode if you need custom execution order (see Graph Processing section).
 
 ### Contextual Filtering
 
@@ -420,12 +415,24 @@ processing:
 
 **Aggregation Functions** (simple expressions only):
 - `SUM(field)` - Sum values
-- `COUNT(*)` or `COUNT(field)` - Count records
+- `COUNT(*)` - Count all rows; `COUNT(field)` - Count non-null values only
 - `AVG(field)` - Average value
 - `MIN(field)` - Minimum value
 - `MAX(field)` - Maximum value
 - `MEDIAN(field)` - Median value
 - `STD(field)` - Standard deviation
+
+**Sort field must match aggregate output key**:
+```yaml
+advanced_operations:
+  summary:
+    source: sales
+    group_by: category
+    aggregate:
+      total_revenue: "SUM(amount)"  # Creates 'total_revenue' field
+    sort: "-total_revenue"          # ✅ Sort by aggregate key
+    # sort: "-amount"               # ❌ Wrong! 'amount' doesn't exist after aggregation
+```
 
 **Important**: Only simple aggregations are supported. Complex expressions like `SUM(x)/100`, `COUNT(DISTINCT x)`, or `CASE WHEN` are **not supported**. Use derived fields in `relationship_highlighting` first, then aggregate. See "Common Pitfalls & Solutions" section above.
 
@@ -939,15 +946,10 @@ API_PASSWORD=your_password
 
 ```bash
 # Run pipeline
-shedboxai run config.yaml
-shedboxai run config.yaml --output results.json
-shedboxai run config.yaml --verbose
+shedboxai run config.yaml [--verbose] [--output results.json]
 
-# Data introspection
-shedboxai introspect sources.yaml
-shedboxai introspect sources.yaml --output analysis.md
-shedboxai introspect sources.yaml --include-samples
-shedboxai introspect sources.yaml --force --skip-errors
+# Data introspection (analyze data sources before writing configs)
+shedboxai introspect sources.yaml [--include-samples] [--output analysis.md]
 ```
 
 ---
@@ -1223,4 +1225,4 @@ ShedBoxAI provides detailed error messages with suggestions:
 
 ---
 
-This cheatsheet covers all documented features in ShedBoxAI v0.1.0. For examples and detailed documentation, see the test fixtures and source code.
+This cheatsheet covers all documented features in ShedBoxAI v1.0.1. For examples and detailed documentation, see the test fixtures and source code.
