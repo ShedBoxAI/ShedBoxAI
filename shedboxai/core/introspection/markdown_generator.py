@@ -656,16 +656,16 @@ class MarkdownGenerator:
                             lines.append(f"# ... and {len(columns) - 4} more fields")
                         lines.append("```")
                     else:
-                        lines.append(f"```")
-                        lines.append(f"item.{source_b}_info.{{field_name}}")
+                        lines.append("```")
+                        lines.append(f"item.{source_b}_info.{{{{field_name}}}}")
                         lines.append("```")
                 else:
-                    lines.append(f"```")
-                    lines.append(f"item.{source_b}_info.{{field_name}}")
+                    lines.append("```")
+                    lines.append(f"item.{source_b}_info.{{{{field_name}}}}")
                     lines.append("```")
             else:
-                lines.append(f"```")
-                lines.append(f"item.{source_b}_info.{{field_name}}")
+                lines.append("```")
+                lines.append(f"item.{source_b}_info.{{{{field_name}}}}")
                 lines.append("```")
 
             lines.append("")
