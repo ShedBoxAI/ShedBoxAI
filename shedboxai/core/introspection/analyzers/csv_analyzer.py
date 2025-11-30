@@ -83,7 +83,6 @@ class CSVAnalyzer(FileAnalyzer):
                 "delimiter": ",",
                 "low_memory": False,  # Better type inference
                 "parse_dates": True,  # Auto-detect dates
-                "infer_datetime_format": True,
             }
 
             # Merge with user options
@@ -279,8 +278,15 @@ class CSVAnalyzer(FileAnalyzer):
 
             # Check for date patterns
             try:
-                pd.to_datetime(non_null_series.head(10))
-                return "date_string"
+                import warnings
+
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", UserWarning)
+                    parsed = pd.to_datetime(non_null_series.head(10), format="mixed", errors="coerce")
+                    # Only consider it a date if most values parsed successfully (not NaT)
+                    valid_count = parsed.notna().sum()
+                    if valid_count >= len(parsed) * 0.8:  # At least 80% valid dates
+                        return "date_string"
             except (ValueError, TypeError):
                 pass
 

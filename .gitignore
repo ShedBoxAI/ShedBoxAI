@@ -56,6 +56,7 @@ output/  # E2E test output directory
 
 # Project specific
 examples/
+output/
 
 #Claude
 .claude

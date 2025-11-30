@@ -48,11 +48,14 @@ class MarkdownGenerator:
         # LLM processing notes
         lines.extend(self._generate_llm_processing_notes(analyses))
 
-        # Data sources documentation
-        lines.extend(self._generate_data_sources_section(analyses, options))
+        # Data sources documentation (with field access patterns based on relationships)
+        lines.extend(self._generate_data_sources_section(analyses, options, relationships))
 
-        # Relationships section
-        lines.extend(self._generate_relationships_section(relationships))
+        # Relationships section (with actionable YAML)
+        lines.extend(self._generate_relationships_section(relationships, analyses))
+
+        # ShedBoxAI YAML syntax reference (for LLM accuracy)
+        lines.extend(self._generate_syntax_reference_section())
 
         # Recommended operations
         lines.extend(self._generate_operations_recommendations(analyses))
@@ -133,19 +136,23 @@ class MarkdownGenerator:
         lines.append("")
         return lines
 
-    def _generate_data_sources_section(self, analyses: Dict[str, Any], options=None) -> List[str]:
+    def _generate_data_sources_section(
+        self, analyses: Dict[str, Any], options=None, relationships: List[Any] = None
+    ) -> List[str]:
         """Generate detailed documentation for each data source."""
         lines = ["## Data Sources", ""]
 
         for name, analysis in analyses.items():
             if analysis.success:
-                lines.extend(self._generate_successful_source_doc(name, analysis, options))
+                lines.extend(self._generate_successful_source_doc(name, analysis, options, relationships))
             else:
                 lines.extend(self._generate_failed_source_doc(name, analysis))
 
         return lines
 
-    def _generate_successful_source_doc(self, name: str, analysis: Any, options=None) -> List[str]:
+    def _generate_successful_source_doc(
+        self, name: str, analysis: Any, options=None, relationships: List[Any] = None
+    ) -> List[str]:
         """Generate documentation for successfully analyzed source."""
         lines = [
             (
@@ -170,9 +177,50 @@ class MarkdownGenerator:
         # Schema and sample section (LLM-optimized)
         lines.extend(self._generate_schema_and_sample_section(analysis, options))
 
+        # Field access patterns (for LLM guidance on joins)
+        lines.extend(self._generate_field_access_patterns(name, analysis, relationships))
+
         # LLM operation hints
         lines.extend(self._generate_operation_hints(name, analysis))
         lines.append("")
+
+        return lines
+
+    def _generate_field_access_patterns(self, name: str, analysis: Any, relationships: List[Any] = None) -> List[str]:
+        """
+        Generate field access patterns for a data source.
+
+        Shows how to access fields directly and after joins based on detected relationships.
+        """
+        # Get column names from schema_info.columns (list of ColumnInfo objects)
+        columns = []
+        if hasattr(analysis, "schema_info") and analysis.schema_info:
+            schema_columns = getattr(analysis.schema_info, "columns", [])
+            if schema_columns:
+                columns = [col.name for col in schema_columns if hasattr(col, "name")]
+
+        if not columns:
+            return []
+
+        lines = ["", "**Field Access Patterns:**"]
+
+        # Direct field access examples
+        direct_examples = columns[:3]
+        direct_str = ", ".join([f"`item.{col}`" for col in direct_examples])
+        lines.append(f"- Direct: {direct_str}")
+
+        # Find joinable relationships for this source (unique targets only)
+        if relationships:
+            joinable_targets = set()
+            for rel in relationships:
+                if rel.source_a == name:
+                    joinable_targets.add(rel.source_b)
+                elif rel.source_b == name:
+                    joinable_targets.add(rel.source_a)
+
+            # Show joined field access patterns (limit to 2 unique targets)
+            for target in list(joinable_targets)[:2]:
+                lines.append(f"- After joining `{target}`: `item.{target}_info.{{field}}`")
 
         return lines
 
@@ -539,29 +587,185 @@ class MarkdownGenerator:
 
         return lines
 
-    def _generate_relationships_section(self, relationships: List[Any]) -> List[str]:
-        """Generate relationships documentation."""
+    def _generate_relationships_section(self, relationships: List[Any], analyses: Dict[str, Any] = None) -> List[str]:
+        """
+        Generate relationships documentation with actionable link_fields YAML.
+
+        Args:
+            relationships: List of detected relationships
+            analyses: Dictionary of source analyses (for field access examples)
+        """
         lines = ["## Detected Relationships", ""]
 
-        if relationships:
-            for relationship in relationships:
-                confidence_text = (
-                    f"({relationship.confidence:.1%} confidence)" if hasattr(relationship, "confidence") else ""
-                )
-                lines.append(
-                    (
-                        f"- **{relationship.source_a}.{relationship.field_a}** ↔ "
-                        f"**{relationship.source_b}.{relationship.field_b}** {confidence_text}"
-                    )
-                )
-                if hasattr(relationship, "description"):
-                    lines.append(f"  {relationship.description}")
-        else:
-            # TODO: REPLACE with real relationship detection from Developer A
-            lines.append("- **customers.customer_id** ↔ **transactions_api.customer_id** (Foreign Key)")
-            lines.append("  High confidence relationship for customer transaction analysis")
+        if not relationships:
+            lines.append("No relationships detected between data sources.")
+            lines.append("")
+            return lines
 
-        lines.append("")
+        for relationship in relationships:
+            source_a = relationship.source_a
+            source_b = relationship.source_b
+            field_a = relationship.field_a
+            field_b = relationship.field_b
+
+            # Relationship header with confidence
+            confidence_pct = f"{relationship.confidence:.0%}" if hasattr(relationship, "confidence") else "N/A"
+            lines.append(f"### {source_a} ↔ {source_b}")
+            lines.append("")
+            lines.append(f"**Confidence**: {confidence_pct}")
+            lines.append(f"**Join Fields**: `{source_a}.{field_a}` → `{source_b}.{field_b}`")
+
+            if hasattr(relationship, "description") and relationship.description:
+                lines.append(f"**Type**: {relationship.description}")
+
+            lines.append("")
+
+            # Ready-to-use link_fields YAML (copy-paste ready)
+            lines.append("**Link Configuration (copy-paste ready):**")
+            lines.append("")
+            lines.append("```yaml")
+            lines.append("link_fields:")
+            lines.append(f"  - source: {source_a}")
+            lines.append(f"    source_field: {field_a}")
+            lines.append(f"    to: {source_b}")
+            lines.append(f"    target_field: {field_b}")
+            lines.append("```")
+            lines.append("")
+
+            # Field access pattern after joining
+            lines.append(f"**After joining, access `{source_b}` fields via:**")
+            lines.append("")
+
+            # Get target source columns if analyses available
+            if analyses:
+                target_analysis = analyses.get(source_b)
+                if target_analysis and target_analysis.success:
+                    # Get column names from schema_info.columns (list of ColumnInfo objects)
+                    columns = []
+                    if hasattr(target_analysis, "schema_info") and target_analysis.schema_info:
+                        schema_columns = getattr(target_analysis.schema_info, "columns", [])
+                        if schema_columns:
+                            columns = [col.name for col in schema_columns if hasattr(col, "name")]
+
+                    if columns:
+                        example_cols = columns[:4]  # Show first 4 columns
+                        lines.append("```")
+                        for col in example_cols:
+                            lines.append(f"item.{source_b}_info.{col}")
+                        if len(columns) > 4:
+                            lines.append(f"# ... and {len(columns) - 4} more fields")
+                        lines.append("```")
+                    else:
+                        lines.append("```")
+                        lines.append(f"item.{source_b}_info.{{{{field_name}}}}")
+                        lines.append("```")
+                else:
+                    lines.append("```")
+                    lines.append(f"item.{source_b}_info.{{{{field_name}}}}")
+                    lines.append("```")
+            else:
+                lines.append("```")
+                lines.append(f"item.{source_b}_info.{{{{field_name}}}}")
+                lines.append("```")
+
+            lines.append("")
+
+        return lines
+
+    def _generate_syntax_reference_section(self) -> List[str]:
+        """
+        Generate ShedBoxAI YAML syntax reference for LLM consumption.
+
+        This section provides critical syntax documentation that helps LLMs generate
+        correct YAML workflows, especially for joined field access patterns.
+        """
+        lines = [
+            "## ShedBoxAI YAML Syntax Reference",
+            "",
+            "### Field Access Patterns",
+            "",
+            "When using `relationship_highlighting` with `link_fields` to join tables, "
+            "access joined fields using the `{target}_info.{field}` pattern:",
+            "",
+            "| Context | Pattern | Example |",
+            "|---------|---------|---------|",
+            "| Base table field | `item.{field}` | `item.quantity`, `item.amount` |",
+            "| Joined table field | `item.{target}_info.{field}` | `item.products_info.unit_price` |",
+            "| In group_by (nested) | `{target}_info.{field}` | `group_by: customers_info.membership_level` |",
+            "",
+            "### Joining Tables Example",
+            "",
+            "```yaml",
+            "processing:",
+            "  relationship_highlighting:",
+            "    sales:  # Base table being enriched",
+            "      link_fields:",
+            "        - source: sales",
+            "          source_field: product_id",
+            "          to: products",
+            "          target_field: id",
+            "        - source: sales",
+            "          source_field: customer_id",
+            "          to: customers",
+            "          target_field: customer_id",
+            "      derived_fields:",
+            "        # Access joined fields via {target}_info.{field}",
+            '        - "profit = (item.products_info.unit_price - item.products_info.cost_price) * item.quantity"',
+            '        - "customer_tier = item.customers_info.membership_level"',
+            "```",
+            "",
+            "### Expression Syntax",
+            "",
+            "**Supported in derived_fields:**",
+            "- Field access: `item.field_name` or `item.joined_info.field_name`",
+            "- Arithmetic: `+`, `-`, `*`, `/`, `%`",
+            "- Comparisons: `>`, `<`, `>=`, `<=`, `==`, `!=`",
+            "- Boolean: `and`, `or`, `not`",
+            "- String concatenation: `item.first_name + ' ' + item.last_name`",
+            "",
+            "**NOT Supported:**",
+            "- Python methods: `.get()`, `.lower()`, `.strip()`, `.replace()`",
+            "- Complex expressions in aggregates: `SUM(amount) / 100`",
+            "- DISTINCT: `COUNT(DISTINCT field)`",
+            "- CASE/conditional expressions in aggregates",
+            "",
+            "### Aggregate Functions",
+            "",
+            "Use these in `advanced_operations.aggregate`:",
+            "",
+            "| Function | Example | Description |",
+            "|----------|---------|-------------|",
+            "| `SUM(field)` | `total: SUM(amount)` | Sum of numeric values |",
+            "| `COUNT(*)` | `count: COUNT(*)` | Count all rows |",
+            "| `COUNT(field)` | `non_null: COUNT(email)` | Count non-null values |",
+            "| `AVG(field)` | `average: AVG(price)` | Average value |",
+            "| `MIN(field)` | `minimum: MIN(date)` | Minimum value |",
+            "| `MAX(field)` | `maximum: MAX(quantity)` | Maximum value |",
+            "| `MEDIAN(field)` | `median: MEDIAN(score)` | Median value |",
+            "| `STD(field)` | `std_dev: STD(values)` | Standard deviation |",
+            "",
+            "### Common Mistakes to Avoid",
+            "",
+            "```yaml",
+            "# ❌ WRONG - Accessing joined field directly (field doesn't exist on base table)",
+            "derived_fields:",
+            '  - "profit = item.unit_price * item.quantity"',
+            "",
+            "# ❌ WRONG - Flattened naming (not how ShedBoxAI works)",
+            "derived_fields:",
+            '  - "profit = item.products_unit_price * item.quantity"',
+            "",
+            "# ❌ WRONG - Python dict syntax (not supported)",
+            "derived_fields:",
+            "  - \"profit = item.get('products_info', {}).get('unit_price', 0)\"",
+            "",
+            "# ✅ CORRECT - Use {target}_info.{field} pattern",
+            "derived_fields:",
+            '  - "profit = item.products_info.unit_price * item.quantity"',
+            "```",
+            "",
+        ]
+
         return lines
 
     def _generate_operations_recommendations(self, analyses: Dict[str, Any]) -> List[str]:
