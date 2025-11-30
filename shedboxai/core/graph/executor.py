@@ -36,6 +36,10 @@ class GraphExecutor:
     with topological sorting for correct execution order.
     """
 
+    # Keys used to store processing issues in result
+    PROCESSING_ERRORS_KEY = "_processing_errors"
+    PROCESSING_WARNINGS_KEY = "_processing_warnings"
+
     def __init__(self, engine=None):
         """
         Initialize the graph executor.
@@ -44,6 +48,8 @@ class GraphExecutor:
             engine: Optional expression engine to pass to handlers
         """
         self.engine = engine
+        self._collected_errors: list = []
+        self._collected_warnings: list = []
 
         # Map of operation names to handler classes
         self.operation_handlers = {
@@ -76,6 +82,10 @@ class GraphExecutor:
             InvalidConfigurationError: If operation configuration is invalid
             OperationExecutionError: If an operation fails during execution
         """
+        # Clear any issues from previous executions
+        self._collected_errors = []
+        self._collected_warnings = []
+
         # Create directed graph
         graph = nx.DiGraph()
         nodes = {}
@@ -218,6 +228,18 @@ graph:
                     suggestion="Check your input data and operation configuration for compatibility issues",
                 ) from e
 
+            # Collect any issues from the handler
+            if handler.has_errors():
+                self._collected_errors.extend(handler.get_errors_as_dicts())
+            if handler.has_warnings():
+                self._collected_warnings.extend(handler.get_warnings_as_dicts())
+
+        # Add collected issues to result if any exist
+        if self._collected_errors:
+            result[self.PROCESSING_ERRORS_KEY] = self._collected_errors
+        if self._collected_warnings:
+            result[self.PROCESSING_WARNINGS_KEY] = self._collected_warnings
+
         return result
 
     def execute_linear_pipeline(self, data: Dict[str, Any], processor_config: Any) -> Dict[str, Any]:
@@ -236,6 +258,10 @@ graph:
             OperationExecutionError: If an operation fails during execution
         """
         import logging
+
+        # Clear any issues from previous executions
+        self._collected_errors = []
+        self._collected_warnings = []
 
         result = data.copy()
         logger = logging.getLogger(__name__)
@@ -300,6 +326,12 @@ graph:
                     suggestion="Check your input data and operation configuration for compatibility issues",
                 ) from e
 
+            # Collect any issues from the handler
+            if handler.has_errors():
+                self._collected_errors.extend(handler.get_errors_as_dicts())
+            if handler.has_warnings():
+                self._collected_warnings.extend(handler.get_warnings_as_dicts())
+
             # Track what was created
             after_keys = set(result.keys())
             new_keys = after_keys - before_keys
@@ -320,6 +352,14 @@ graph:
             logger.info("=" * 60)
             logger.info("PROCESSING COMPLETE")
             logger.info("=" * 60)
+
+        # Add collected issues to result if any exist
+        if self._collected_errors:
+            result[self.PROCESSING_ERRORS_KEY] = self._collected_errors
+            logger.warning(f"Processing completed with {len(self._collected_errors)} error(s)")
+        if self._collected_warnings:
+            result[self.PROCESSING_WARNINGS_KEY] = self._collected_warnings
+            logger.info(f"Processing completed with {len(self._collected_warnings)} warning(s)")
 
         return result
 

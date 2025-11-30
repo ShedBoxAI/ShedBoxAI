@@ -746,3 +746,277 @@ class TestRelationshipHighlightingHandler:
         # Verify pattern detection worked
         assert "users_patterns" in result
         assert result["users_patterns"]["patterns"]["Engineering"] == 2
+
+
+class TestErrorCollection:
+    """Test suite for error collection functionality (Issue 3 fix)."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.mock_engine = Mock()
+        self.handler = RelationshipHighlightingHandler(engine=self.mock_engine)
+
+    def test_derived_field_error_is_collected(self):
+        """Test that errors during derived field evaluation are collected."""
+        # Make the engine raise an error
+        self.mock_engine.evaluate.side_effect = Exception("Cannot evaluate expression")
+
+        data = {
+            "items": [{"id": 1, "value": 100}],
+            "other": [{"id": 2}],
+        }
+        config = {
+            "test": RelationshipConfig(
+                derived_fields=["computed = item.nonexistent.field"]
+            )
+        }
+
+        result = self.handler.process(data, config)
+
+        # Verify errors were collected
+        assert self.handler.has_errors()
+        errors = self.handler.get_errors()
+        assert len(errors) > 0
+
+    def test_error_includes_source_name(self):
+        """Test that collected errors include the source name (Issue 4 fix)."""
+        self.mock_engine.evaluate.side_effect = Exception("Test error")
+
+        data = {
+            "customers": [{"id": 1, "name": "Alice"}],
+            "products": [{"id": 2, "price": 100}],
+        }
+        config = {
+            "test": RelationshipConfig(
+                derived_fields=["bad_field = item.missing.path"]
+            )
+        }
+
+        self.handler.process(data, config)
+
+        errors = self.handler.get_errors_as_dicts()
+        # Each source should have its own error with source name
+        source_names = {e["source"] for e in errors}
+        assert "customers" in source_names
+        assert "products" in source_names
+
+    def test_error_includes_field_and_expression(self):
+        """Test that collected errors include field name and expression."""
+        self.mock_engine.evaluate.side_effect = Exception("Evaluation failed")
+
+        data = {"items": [{"value": 10}]}
+        config = {
+            "test": RelationshipConfig(
+                derived_fields=["result_field = item.a + item.b"]
+            )
+        }
+
+        self.handler.process(data, config)
+
+        errors = self.handler.get_errors_as_dicts()
+        assert len(errors) > 0
+        error = errors[0]
+        assert error["field"] == "result_field"
+        assert error["expression"] == "item.a + item.b"
+        assert "Evaluation failed" in error["message"]
+
+    def test_conditional_highlighting_error_is_collected(self):
+        """Test that errors during conditional highlighting are collected."""
+        self.mock_engine.evaluate.side_effect = Exception("Condition error")
+
+        data = {"items": [{"value": 100}]}
+        config = {
+            "test": RelationshipConfig(
+                conditional_highlighting=[
+                    {
+                        "source": "items",
+                        "condition": "item.value > 50",
+                        "insight_name": "high_value",
+                    }
+                ]
+            )
+        }
+
+        self.handler.process(data, config)
+
+        assert self.handler.has_errors()
+        errors = self.handler.get_errors_as_dicts()
+        assert any(e["source"] == "items" for e in errors)
+        assert any("item.value > 50" in e.get("expression", "") for e in errors)
+
+    def test_context_addition_error_is_collected(self):
+        """Test that errors during context addition are collected."""
+        self.mock_engine.substitute_variables.side_effect = Exception("Template error")
+
+        data = {"users": [{"name": "Alice"}]}
+        config = {
+            "test": RelationshipConfig(
+                context_additions={"users": "Hello {{item.name}}"}
+            )
+        }
+
+        self.handler.process(data, config)
+
+        assert self.handler.has_errors()
+        errors = self.handler.get_errors_as_dicts()
+        assert any(e["source"] == "users" for e in errors)
+
+    def test_clear_errors(self):
+        """Test that errors can be cleared."""
+        self.mock_engine.evaluate.side_effect = Exception("Error")
+
+        data = {"items": [{"value": 10}]}
+        config = {"test": RelationshipConfig(derived_fields=["x = item.y"])}
+
+        self.handler.process(data, config)
+        assert self.handler.has_errors()
+
+        self.handler.clear_errors()
+        assert not self.handler.has_errors()
+        assert len(self.handler.get_errors()) == 0
+
+    def test_operation_name_in_error(self):
+        """Test that the operation name is included in errors."""
+        self.mock_engine.evaluate.side_effect = Exception("Error")
+
+        data = {"items": [{"value": 10}]}
+        config = {"test": RelationshipConfig(derived_fields=["x = item.y"])}
+
+        self.handler.process(data, config)
+
+        errors = self.handler.get_errors_as_dicts()
+        assert all(e["operation"] == "relationship_highlighting" for e in errors)
+
+
+class TestProcessingErrorClass:
+    """Test suite for the ProcessingError/ProcessingIssue class."""
+
+    def test_processing_error_to_dict(self):
+        """Test ProcessingError serialization to dictionary."""
+        from shedboxai.core.operations.base import ProcessingError, Severity
+
+        error = ProcessingError(
+            source="test_source",
+            operation="relationship_highlighting",
+            message="Test error message",
+            severity=Severity.ERROR,
+            field="test_field",
+            expression="item.a + item.b",
+        )
+
+        error_dict = error.to_dict()
+        assert error_dict["severity"] == "error"
+        assert error_dict["source"] == "test_source"
+        assert error_dict["operation"] == "relationship_highlighting"
+        assert error_dict["message"] == "Test error message"
+        assert error_dict["field"] == "test_field"
+        assert error_dict["expression"] == "item.a + item.b"
+
+    def test_processing_error_to_dict_without_optional_fields(self):
+        """Test ProcessingError serialization without optional fields."""
+        from shedboxai.core.operations.base import ProcessingError
+
+        error = ProcessingError(
+            source="test_source",
+            operation="test_op",
+            message="Error message",
+        )
+
+        error_dict = error.to_dict()
+        assert error_dict["severity"] == "error"  # Default severity
+        assert "source" in error_dict
+        assert "operation" in error_dict
+        assert "message" in error_dict
+        assert "field" not in error_dict
+        assert "expression" not in error_dict
+
+    def test_processing_warning_severity(self):
+        """Test ProcessingIssue with WARNING severity."""
+        from shedboxai.core.operations.base import ProcessingIssue, Severity
+
+        warning = ProcessingIssue(
+            source="test_source",
+            operation="test_op",
+            message="Warning message",
+            severity=Severity.WARNING,
+        )
+
+        warning_dict = warning.to_dict()
+        assert warning_dict["severity"] == "warning"
+        assert warning_dict["message"] == "Warning message"
+
+
+class TestSeverityLevels:
+    """Test suite for severity levels in error collection."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.mock_engine = Mock()
+        self.handler = RelationshipHighlightingHandler(engine=self.mock_engine)
+
+    def test_collect_error_has_error_severity(self):
+        """Test that _collect_error creates issues with ERROR severity."""
+        self.mock_engine.evaluate.side_effect = Exception("Test error")
+
+        data = {"items": [{"value": 10}]}
+        config = {"test": RelationshipConfig(derived_fields=["x = item.y"])}
+
+        self.handler.process(data, config)
+
+        assert self.handler.has_errors()
+        assert not self.handler.has_warnings()
+        errors = self.handler.get_errors_as_dicts()
+        assert all(e["severity"] == "error" for e in errors)
+
+    def test_collect_warning_method(self):
+        """Test that _collect_warning creates issues with WARNING severity."""
+        # Directly test the warning collection method
+        self.handler._collect_warning(
+            source="test_source",
+            message="Test warning",
+            field="test_field",
+        )
+
+        assert self.handler.has_warnings()
+        assert not self.handler.has_errors()
+        warnings = self.handler.get_warnings_as_dicts()
+        assert len(warnings) == 1
+        assert warnings[0]["severity"] == "warning"
+        assert warnings[0]["source"] == "test_source"
+        assert warnings[0]["message"] == "Test warning"
+
+    def test_get_issues_returns_all(self):
+        """Test that get_issues returns both errors and warnings."""
+        self.handler._collect_error(source="src1", message="Error 1")
+        self.handler._collect_warning(source="src2", message="Warning 1")
+        self.handler._collect_error(source="src3", message="Error 2")
+
+        all_issues = self.handler.get_issues()
+        assert len(all_issues) == 3
+
+        errors = self.handler.get_errors()
+        assert len(errors) == 2
+
+        warnings = self.handler.get_warnings()
+        assert len(warnings) == 1
+
+    def test_has_issues_with_severity_filter(self):
+        """Test has_issues with severity filter."""
+        from shedboxai.core.operations.base import Severity
+
+        self.handler._collect_error(source="src1", message="Error")
+
+        assert self.handler.has_issues()  # Any issue
+        assert self.handler.has_issues(Severity.ERROR)
+        assert not self.handler.has_issues(Severity.WARNING)
+
+    def test_clear_issues_clears_all(self):
+        """Test that clear_issues removes both errors and warnings."""
+        self.handler._collect_error(source="src1", message="Error")
+        self.handler._collect_warning(source="src2", message="Warning")
+
+        assert self.handler.has_issues()
+        self.handler.clear_issues()
+        assert not self.handler.has_issues()
+        assert not self.handler.has_errors()
+        assert not self.handler.has_warnings()

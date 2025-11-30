@@ -177,7 +177,12 @@ class RelationshipHighlightingHandler(OperationHandler):
                                 else:
                                     target_item[result_field] = result[source]
             except Exception as e:
-                self._log_error(f"Error processing JSONPath link: {e}")
+                error_msg = str(e)
+                self._log_error(f"Error processing JSONPath link on '{source}' -> '{target}': {error_msg}")
+                self._collect_error(
+                    source=source or "unknown",
+                    message=f"JSONPath link error: {error_msg}",
+                )
 
     def _process_pattern_detection(self, result: Dict[str, Any], config: RelationshipConfig) -> None:
         """Process pattern detection."""
@@ -274,7 +279,13 @@ class RelationshipHighlightingHandler(OperationHandler):
                             }
                             highlighted_items.append(highlighted_item)
                     except Exception as e:
-                        self._log_error(f"Error evaluating condition: {condition} - {str(e)}")
+                        error_msg = str(e)
+                        self._log_error(f"Error evaluating condition on '{source}': {condition} - {error_msg}")
+                        self._collect_error(
+                            source=source,
+                            message=f"Condition evaluation error: {error_msg}",
+                            expression=condition,
+                        )
 
                 if highlighted_items:
                     result[f"{source}_highlights"] = highlighted_items
@@ -298,7 +309,13 @@ class RelationshipHighlightingHandler(OperationHandler):
                             context = context_template  # Fallback to template as-is
                         item["_context"] = context
                     except Exception as e:
-                        self._log_error(f"Error adding context: {str(e)}")
+                        error_msg = str(e)
+                        self._log_error(f"Error adding context to '{target}': {error_msg}")
+                        self._collect_error(
+                            source=target,
+                            message=f"Context addition error: {error_msg}",
+                            expression=context_template,
+                        )
 
     def _process_derived_fields(self, result: Dict[str, Any], config: RelationshipConfig) -> None:
         """Process derived fields."""
@@ -323,4 +340,11 @@ class RelationshipHighlightingHandler(OperationHandler):
                                 # Fallback: just store the expression
                                 item[field_name] = f"EXPR: {expression}"
                         except Exception as e:
-                            self._log_error(f"Error evaluating derived field: {derived_field} - {str(e)}")
+                            error_msg = str(e)
+                            self._log_error(f"Error evaluating derived field on '{source_name}': {derived_field} - {error_msg}")
+                            self._collect_error(
+                                source=source_name,
+                                message=error_msg,
+                                field=field_name,
+                                expression=expression,
+                            )
