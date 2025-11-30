@@ -20,6 +20,7 @@ from shedboxai.core.config.models import AdvancedOperationConfig
 from shedboxai.core.exceptions import ConfigurationError
 from shedboxai.core.operations.advanced import (
     AdvancedOperationsHandler,
+    get_nested_value,
     validate_aggregation_expression,
     validate_field_exists,
 )
@@ -107,6 +108,111 @@ class TestAdvancedOperationsHandler:
         assert "A" in categories
         assert "B" in categories
         assert "None" in categories or None not in categories  # Depends on implementation
+
+    # Nested Path Group By Tests (Issue #7 - Issue 2)
+    def test_group_by_nested_path(self):
+        """Test group_by with nested path like 'customers_info.membership_level'.
+
+        This is a regression test for Issue #7 - Issue 2: group_by didn't support
+        nested paths, which are common after joins that create nested structures.
+        """
+        data = {
+            "sales": [
+                {"id": 1, "amount": 100, "customers_info": {"membership_level": "Gold"}},
+                {"id": 2, "amount": 150, "customers_info": {"membership_level": "Gold"}},
+                {"id": 3, "amount": 200, "customers_info": {"membership_level": "Silver"}},
+            ]
+        }
+        config = {
+            "by_membership": AdvancedOperationConfig(
+                source="sales",
+                group_by="customers_info.membership_level",
+                aggregate={"total": "SUM(amount)", "count": "COUNT(*)"},
+            )
+        }
+
+        result = self.handler.process(data, config)
+        summary = result["by_membership"]
+
+        # Should have 2 groups
+        assert len(summary) == 2
+
+        groups = {item["customers_info.membership_level"]: item for item in summary}
+        assert groups["Gold"]["total"] == 250.0
+        assert groups["Gold"]["count"] == 2
+        assert groups["Silver"]["total"] == 200.0
+        assert groups["Silver"]["count"] == 1
+
+    def test_group_by_deeply_nested_path(self):
+        """Test group_by with deeply nested path."""
+        data = {
+            "orders": [
+                {"id": 1, "amount": 100, "user": {"profile": {"tier": "premium"}}},
+                {"id": 2, "amount": 200, "user": {"profile": {"tier": "premium"}}},
+                {"id": 3, "amount": 50, "user": {"profile": {"tier": "basic"}}},
+            ]
+        }
+        config = {
+            "by_tier": AdvancedOperationConfig(
+                source="orders",
+                group_by="user.profile.tier",
+                aggregate={"total": "SUM(amount)"},
+            )
+        }
+
+        result = self.handler.process(data, config)
+        groups = {item["user.profile.tier"]: item for item in result["by_tier"]}
+
+        assert groups["premium"]["total"] == 300.0
+        assert groups["basic"]["total"] == 50.0
+
+    def test_group_by_nested_path_with_missing_intermediate(self):
+        """Test group_by with nested path when some items don't have the intermediate path."""
+        data = {
+            "items": [
+                {"id": 1, "value": 100, "meta": {"category": "A"}},
+                {"id": 2, "value": 200, "meta": {"category": "A"}},
+                {"id": 3, "value": 50},  # Missing 'meta' entirely
+                {"id": 4, "value": 75, "meta": None},  # meta is None
+            ]
+        }
+        config = {
+            "by_category": AdvancedOperationConfig(
+                source="items",
+                group_by="meta.category",
+                aggregate={"total": "SUM(value)", "count": "COUNT(*)"},
+            )
+        }
+
+        result = self.handler.process(data, config)
+        # Only items with valid nested path should be grouped
+        assert len(result["by_category"]) == 1
+        assert result["by_category"][0]["meta.category"] == "A"
+        assert result["by_category"][0]["total"] == 300.0
+        assert result["by_category"][0]["count"] == 2
+
+    def test_group_by_simple_field_still_works(self):
+        """Test that simple (non-nested) group_by still works after the nested path fix."""
+        data = {
+            "sales": [
+                {"region": "North", "amount": 100},
+                {"region": "South", "amount": 150},
+                {"region": "North", "amount": 200},
+            ]
+        }
+        config = {
+            "by_region": AdvancedOperationConfig(
+                source="sales",
+                group_by="region",
+                aggregate={"total": "SUM(amount)"},
+            )
+        }
+
+        result = self.handler.process(data, config)
+        groups = {item["region"]: item for item in result["by_region"]}
+
+        assert groups["North"]["total"] == 300.0
+        assert groups["South"]["total"] == 150.0
 
     # Aggregation Tests
     def test_count_aggregation(self):
@@ -918,3 +1024,59 @@ class TestFieldValidation:
             error_msg = str(e)
             # May or may not suggest depending on similarity threshold
             assert "Field 'email_address' not found" in error_msg
+
+
+class TestGetNestedValue:
+    """Tests for get_nested_value helper function (Issue #7 - Issue 2)."""
+
+    def test_simple_top_level_field(self):
+        """Test getting a simple top-level field."""
+        item = {"id": 1, "name": "Alice"}
+        assert get_nested_value(item, "id") == 1
+        assert get_nested_value(item, "name") == "Alice"
+
+    def test_single_level_nested(self):
+        """Test getting a single-level nested field."""
+        item = {"id": 1, "info": {"level": "Gold"}}
+        assert get_nested_value(item, "info.level") == "Gold"
+
+    def test_multi_level_nested(self):
+        """Test getting a deeply nested field."""
+        item = {"user": {"profile": {"settings": {"theme": "dark"}}}}
+        assert get_nested_value(item, "user.profile.settings.theme") == "dark"
+
+    def test_missing_top_level_field(self):
+        """Test getting a missing top-level field returns None."""
+        item = {"id": 1}
+        assert get_nested_value(item, "nonexistent") is None
+
+    def test_missing_intermediate_path(self):
+        """Test getting a nested field with missing intermediate path returns None."""
+        item = {"id": 1, "info": {"level": "Gold"}}
+        assert get_nested_value(item, "meta.category") is None
+
+    def test_none_intermediate_value(self):
+        """Test getting a nested field when intermediate value is None."""
+        item = {"id": 1, "info": None}
+        assert get_nested_value(item, "info.level") is None
+
+    def test_non_dict_intermediate_value(self):
+        """Test getting a nested field when intermediate value is not a dict."""
+        item = {"id": 1, "info": "not_a_dict"}
+        assert get_nested_value(item, "info.level") is None
+
+    def test_empty_dict(self):
+        """Test getting value from empty dict."""
+        item = {}
+        assert get_nested_value(item, "any.path") is None
+
+    def test_numeric_value(self):
+        """Test getting numeric values."""
+        item = {"stats": {"count": 42, "ratio": 0.75}}
+        assert get_nested_value(item, "stats.count") == 42
+        assert get_nested_value(item, "stats.ratio") == 0.75
+
+    def test_list_value(self):
+        """Test getting list values."""
+        item = {"data": {"items": [1, 2, 3]}}
+        assert get_nested_value(item, "data.items") == [1, 2, 3]

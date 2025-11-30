@@ -479,6 +479,96 @@ output:
         assert silver_row["count"] == 1
 
 
+class TestNestedPathGroupBy:
+    """E2E tests for Issue #7 - Issue 2: group_by with nested paths."""
+
+    def test_group_by_nested_path_after_join(self, market_analyser_server, tmp_path):
+        """Test group_by with nested path created by link_fields join.
+
+        This is a regression test for Issue #7 - Issue 2: group_by didn't support
+        nested paths like 'customers_info.membership_level' which are created
+        after join operations via link_fields.
+        """
+        config = tmp_path / "test_nested_group_by.yaml"
+        config.write_text(
+            """
+data_sources:
+  sales:
+    type: csv
+    data:
+      - id: 1
+        customer_id: CUST001
+        amount: 100
+      - id: 2
+        customer_id: CUST001
+        amount: 150
+      - id: 3
+        customer_id: CUST002
+        amount: 200
+      - id: 4
+        customer_id: CUST002
+        amount: 75
+
+  customers:
+    type: csv
+    data:
+      - customer_id: CUST001
+        membership_level: Gold
+      - customer_id: CUST002
+        membership_level: Silver
+
+processing:
+  relationship_highlighting:
+    sales:
+      link_fields:
+        - source: sales
+          source_field: customer_id
+          to: customers
+          target_field: customer_id
+
+  advanced_operations:
+    sales_by_membership:
+      source: sales
+      group_by: customers_info.membership_level
+      aggregate:
+        total_amount: SUM(amount)
+        count: COUNT(*)
+      sort: -total_amount
+
+output:
+  type: print
+  format: json
+"""
+        )
+
+        pipeline = Pipeline(str(config))
+        result = pipeline.run()
+
+        # Convert DataFrames to lists for easier assertion
+        import pandas as pd
+
+        def to_list(data):
+            if isinstance(data, pd.DataFrame):
+                return data.to_dict("records")
+            return data
+
+        # Should have aggregated results by membership (via nested path)
+        assert "sales_by_membership" in result
+        summary = to_list(result["sales_by_membership"])
+        assert len(summary) == 2  # Gold and Silver
+
+        # Create a lookup by membership level
+        groups = {item["customers_info.membership_level"]: item for item in summary}
+
+        # Verify Gold has 2 sales totaling 250
+        assert groups["Gold"]["total_amount"] == 250
+        assert groups["Gold"]["count"] == 2
+
+        # Verify Silver has 2 sales totaling 275
+        assert groups["Silver"]["total_amount"] == 275
+        assert groups["Silver"]["count"] == 2
+
+
 class TestDataFrameHandling:
     """E2E tests for DataFrame handling in templates (Feedback 3 - Part 1, Issue 1)."""
 
