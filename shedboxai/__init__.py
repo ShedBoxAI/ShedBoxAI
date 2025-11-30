@@ -9,7 +9,7 @@ with sophisticated capabilities including AI-enhanced data processing.
 
 from .pipeline import Pipeline
 
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 __author__ = "ShedBoxAI Team"
 __description__ = "Lightweight framework for AI-powered applications through configuration"
 
