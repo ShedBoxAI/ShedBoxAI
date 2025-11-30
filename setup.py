@@ -4,7 +4,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="shedboxai",
-    version="1.0.3",
+    version="1.1.0",
     packages=find_packages(),
     package_data={
         "shedboxai": ["data/AI_ASSISTANT_GUIDE.md"],
