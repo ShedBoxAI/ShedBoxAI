@@ -144,9 +144,7 @@ class MarkdownGenerator:
 
         for name, analysis in analyses.items():
             if analysis.success:
-                lines.extend(
-                    self._generate_successful_source_doc(name, analysis, options, relationships)
-                )
+                lines.extend(self._generate_successful_source_doc(name, analysis, options, relationships))
             else:
                 lines.extend(self._generate_failed_source_doc(name, analysis))
 
@@ -188,9 +186,7 @@ class MarkdownGenerator:
 
         return lines
 
-    def _generate_field_access_patterns(
-        self, name: str, analysis: Any, relationships: List[Any] = None
-    ) -> List[str]:
+    def _generate_field_access_patterns(self, name: str, analysis: Any, relationships: List[Any] = None) -> List[str]:
         """
         Generate field access patterns for a data source.
 
@@ -591,9 +587,7 @@ class MarkdownGenerator:
 
         return lines
 
-    def _generate_relationships_section(
-        self, relationships: List[Any], analyses: Dict[str, Any] = None
-    ) -> List[str]:
+    def _generate_relationships_section(self, relationships: List[Any], analyses: Dict[str, Any] = None) -> List[str]:
         """
         Generate relationships documentation with actionable link_fields YAML.
 
@@ -615,9 +609,7 @@ class MarkdownGenerator:
             field_b = relationship.field_b
 
             # Relationship header with confidence
-            confidence_pct = (
-                f"{relationship.confidence:.0%}" if hasattr(relationship, "confidence") else "N/A"
-            )
+            confidence_pct = f"{relationship.confidence:.0%}" if hasattr(relationship, "confidence") else "N/A"
             lines.append(f"### {source_a} ↔ {source_b}")
             lines.append("")
             lines.append(f"**Confidence**: {confidence_pct}")
@@ -765,7 +757,7 @@ class MarkdownGenerator:
             "",
             "# ❌ WRONG - Python dict syntax (not supported)",
             "derived_fields:",
-            '  - "profit = item.get(\'products_info\', {}).get(\'unit_price\', 0)"',
+            "  - \"profit = item.get('products_info', {}).get('unit_price', 0)\"",
             "",
             "# ✅ CORRECT - Use {target}_info.{field} pattern",
             "derived_fields:",

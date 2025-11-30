@@ -279,6 +279,7 @@ class CSVAnalyzer(FileAnalyzer):
             # Check for date patterns
             try:
                 import warnings
+
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore", UserWarning)
                     parsed = pd.to_datetime(non_null_series.head(10), format="mixed", errors="coerce")

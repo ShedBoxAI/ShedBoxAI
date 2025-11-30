@@ -7,8 +7,9 @@ Tests the LLM-optimized markdown generation including:
 - Field access patterns per data source
 """
 
-import pytest
 from unittest.mock import MagicMock, Mock
+
+import pytest
 
 from shedboxai.core.introspection.markdown_generator import MarkdownGenerator
 from shedboxai.core.introspection.models import (
