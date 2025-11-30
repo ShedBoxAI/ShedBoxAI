@@ -80,7 +80,7 @@ class RelationshipHighlightingHandler(OperationHandler):
             self._process_pattern_detection(result, relationship_config)
             self._process_conditional_highlighting(result, relationship_config)
             self._process_context_additions(result, relationship_config)
-            self._process_derived_fields(result, relationship_config)
+            self._process_derived_fields(result, relationship_config, source_name)
 
         return result
 
@@ -317,9 +317,20 @@ class RelationshipHighlightingHandler(OperationHandler):
                             expression=context_template,
                         )
 
-    def _process_derived_fields(self, result: Dict[str, Any], config: RelationshipConfig) -> None:
-        """Process derived fields."""
+    def _process_derived_fields(self, result: Dict[str, Any], config: RelationshipConfig, target_source: str) -> None:
+        """Process derived fields.
+
+        Args:
+            result: The result dictionary containing all data sources
+            config: The relationship configuration
+            target_source: The specific source name to apply derived fields to
+        """
         if not config.derived_fields:
+            return
+
+        # Only apply derived fields to the target source, not all sources
+        source_data = result.get(target_source)
+        if not isinstance(source_data, list):
             return
 
         for derived_field in config.derived_fields:
@@ -329,22 +340,21 @@ class RelationshipHighlightingHandler(OperationHandler):
             field_name = parts[0].strip()
             expression = parts[1].strip()
 
-            # Apply to all data sources
-            for source_name, source_data in result.items():
-                if isinstance(source_data, list):
-                    for item in source_data:
-                        try:
-                            if self.engine:
-                                item[field_name] = self.engine.evaluate(expression, {"item": item})
-                            else:
-                                # Fallback: just store the expression
-                                item[field_name] = f"EXPR: {expression}"
-                        except Exception as e:
-                            error_msg = str(e)
-                            self._log_error(f"Error evaluating derived field on '{source_name}': {derived_field} - {error_msg}")
-                            self._collect_error(
-                                source=source_name,
-                                message=error_msg,
-                                field=field_name,
-                                expression=expression,
-                            )
+            for item in source_data:
+                try:
+                    if self.engine:
+                        item[field_name] = self.engine.evaluate(expression, {"item": item})
+                    else:
+                        # Fallback: just store the expression
+                        item[field_name] = f"EXPR: {expression}"
+                except Exception as e:
+                    error_msg = str(e)
+                    self._log_error(
+                        f"Error evaluating derived field on '{target_source}': {derived_field} - {error_msg}"
+                    )
+                    self._collect_error(
+                        source=target_source,
+                        message=error_msg,
+                        field=field_name,
+                        expression=expression,
+                    )

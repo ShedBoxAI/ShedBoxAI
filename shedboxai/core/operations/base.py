@@ -194,9 +194,7 @@ class OperationHandler(ABC):
         )
         self._processing_issues.append(issue)
 
-    def _collect_error(
-        self, source: str, message: str, field: str = None, expression: str = None
-    ) -> None:
+    def _collect_error(self, source: str, message: str, field: str = None, expression: str = None) -> None:
         """
         Collect a processing error (severity=ERROR) for later retrieval.
 
@@ -208,9 +206,7 @@ class OperationHandler(ABC):
         """
         self._collect_issue(source, message, Severity.ERROR, field, expression)
 
-    def _collect_warning(
-        self, source: str, message: str, field: str = None, expression: str = None
-    ) -> None:
+    def _collect_warning(self, source: str, message: str, field: str = None, expression: str = None) -> None:
         """
         Collect a processing warning (severity=WARNING) for later retrieval.
 
