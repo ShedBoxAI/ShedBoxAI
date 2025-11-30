@@ -531,7 +531,8 @@ class TestRelationshipHighlightingHandler:
                 {"price": 200, "tax_rate": 0.5},
             ]
         }
-        config = {"test": RelationshipConfig(derived_fields=["total_price = item.price * (1 + item.tax_rate)"])}
+        # Config key must match the data source name for derived fields to be applied
+        config = {"products": RelationshipConfig(derived_fields=["total_price = item.price * (1 + item.tax_rate)"])}
 
         result = self.handler_with_engine.process(data, config)
 
@@ -543,7 +544,8 @@ class TestRelationshipHighlightingHandler:
     def test_derived_fields_without_engine(self):
         """Test derived fields without expression engine."""
         data = {"items": [{"a": 10, "b": 20}]}
-        config = {"test": RelationshipConfig(derived_fields=["sum = item.a + item.b"])}
+        # Config key must match the data source name for derived fields to be applied
+        config = {"items": RelationshipConfig(derived_fields=["sum = item.a + item.b"])}
 
         result = self.handler.process(data, config)
 
@@ -557,20 +559,105 @@ class TestRelationshipHighlightingHandler:
         self.mock_engine.evaluate.side_effect = Exception("Invalid expression")
 
         data = {"items": [{"value": 10}]}
-        config = {"test": RelationshipConfig(derived_fields=["result = invalid expression"])}
+        # Config key must match the data source name for derived fields to be applied
+        config = {"items": RelationshipConfig(derived_fields=["result = invalid expression"])}
 
         result = self.handler_with_engine.process(data, config)
-        # Should handle invalid expressions gracefully
+        # Should handle invalid expressions gracefully (no crash, field not added due to error)
         assert result
+        # Field should not be present since evaluation failed
+        assert "result" not in result["items"][0]
 
     def test_derived_fields_malformed(self):
         """Test derived fields with malformed expressions."""
         data = {"items": [{"value": 10}]}
-        config = {"test": RelationshipConfig(derived_fields=["no_equals_sign", "multiple = equals = signs", ""])}
+        # Config key must match the data source name for derived fields to be applied
+        config = {"items": RelationshipConfig(derived_fields=["no_equals_sign", "multiple = equals = signs", ""])}
 
         result = self.handler.process(data, config)
-        # Should handle malformed expressions gracefully
-        assert result == data
+        # Should handle malformed expressions gracefully - only "multiple = equals = signs" is valid format
+        # but since there's no engine, it will store EXPR fallback for valid expressions
+        assert result
+        # "no_equals_sign" and "" are skipped (no "=" sign or empty)
+        assert "no_equals_sign" not in result["items"][0]
+        # "multiple = equals = signs" is valid format (splits on first "=")
+        assert "multiple" in result["items"][0]
+        assert "EXPR:" in str(result["items"][0]["multiple"])
+
+    def test_derived_fields_only_applied_to_target_source(self):
+        """Test that derived fields are ONLY applied to the configured source.
+
+        This is a regression test for Issue #7: derived fields were being applied
+        to ALL data sources, causing fields in other sources to be overwritten.
+        """
+        from shedboxai.core.expression import ExpressionEngine
+
+        handler = RelationshipHighlightingHandler(engine=ExpressionEngine())
+
+        data = {
+            "sales": [
+                {"id": 1, "customer_id": "C1", "customers_info": {"membership_level": "Gold"}},
+                {"id": 2, "customer_id": "C2", "customers_info": {"membership_level": "Silver"}},
+            ],
+            "customers": [
+                {"customer_id": "C1", "membership_level": "Gold"},
+                {"customer_id": "C2", "membership_level": "Silver"},
+            ],
+            "products": [
+                {"product_id": "P1", "name": "Widget"},
+            ],
+        }
+
+        # Config targets ONLY 'sales' source
+        config = {
+            "sales": RelationshipConfig(derived_fields=["customer_membership = item.customers_info.membership_level"])
+        }
+
+        result = handler.process(data, config)
+
+        # Derived field should be added to sales records
+        assert result["sales"][0]["customer_membership"] == "Gold"
+        assert result["sales"][1]["customer_membership"] == "Silver"
+
+        # Derived field should NOT be added to customers records
+        assert "customer_membership" not in result["customers"][0]
+        assert "customer_membership" not in result["customers"][1]
+
+        # Derived field should NOT be added to products records
+        assert "customer_membership" not in result["products"][0]
+
+    def test_derived_fields_do_not_overwrite_same_name_in_other_sources(self):
+        """Test that derived fields don't overwrite existing fields in other sources.
+
+        This is a regression test for Issue #7: when a derived field has the same name
+        as an existing field in another source, the original field was being overwritten
+        with None (because the expression evaluated to None on that source).
+        """
+        from shedboxai.core.expression import ExpressionEngine
+
+        handler = RelationshipHighlightingHandler(engine=ExpressionEngine())
+
+        data = {
+            "sales": [
+                {"id": 1, "customers_info": {"membership_level": "Gold"}},
+            ],
+            "customers": [
+                {"customer_id": "C1", "membership_level": "Gold"},  # Has membership_level!
+            ],
+        }
+
+        # This derived field has the SAME NAME as an existing field in customers
+        config = {
+            "sales": RelationshipConfig(derived_fields=["membership_level = item.customers_info.membership_level"])
+        }
+
+        result = handler.process(data, config)
+
+        # Sales should have the derived field
+        assert result["sales"][0]["membership_level"] == "Gold"
+
+        # Customers should STILL have the original membership_level (not overwritten to None)
+        assert result["customers"][0]["membership_level"] == "Gold"
 
     # Configuration Validation Tests
     def test_dict_config_conversion(self):
@@ -641,8 +728,9 @@ class TestRelationshipHighlightingHandler:
             "orders": [{"id": 101, "user_id": 1, "amount": 1000}],
             "logs": [{"user": 1, "action": "login"}],
         }
+        # Config key "users" matches data source for derived_fields to be applied
         config = {
-            "test": RelationshipConfig(
+            "users": RelationshipConfig(
                 link_fields=[
                     {
                         "source": "orders",
@@ -681,6 +769,8 @@ class TestRelationshipHighlightingHandler:
         # Should handle all operations without crashing
         result = self.handler.process(data, config)
         assert result
+        # Derived field should be applied to users (the config target)
+        assert "user_score" in result["users"][0]
 
     def test_dataframe_source_is_converted_to_list(self):
         """Test that pandas DataFrame source data is converted to list of dicts.

@@ -52,6 +52,32 @@ def validate_aggregation_expression(expr: str) -> None:
         )
 
 
+def get_nested_value(item: Dict[str, Any], path: str) -> Any:
+    """
+    Get a value from a nested path like 'customers_info.membership_level'.
+
+    Args:
+        item: The dictionary to extract value from
+        path: Dot-separated path to the value (e.g., 'customers_info.membership_level')
+
+    Returns:
+        The value at the path, or None if not found
+    """
+    if "." not in path:
+        # Simple top-level field
+        return item.get(path)
+
+    # Navigate nested path
+    parts = path.split(".")
+    value = item
+    for part in parts:
+        if isinstance(value, dict):
+            value = value.get(part)
+        else:
+            return None
+    return value
+
+
 def validate_field_exists(field_name: str, available_fields: List[str], source_name: str) -> None:
     """
     Validate that a field exists in the available fields, provide suggestions if not.
@@ -173,9 +199,9 @@ class AdvancedOperationsHandler(OperationHandler):
         group_by_field = config.group_by
         grouped_data = {}
 
-        # Group data by field
+        # Group data by field (supports nested paths like 'customers_info.membership_level')
         for item in source_data:
-            group_key = item.get(group_by_field)
+            group_key = get_nested_value(item, group_by_field)
             if group_key is not None:
                 grouped_data.setdefault(str(group_key), []).append(item)
 

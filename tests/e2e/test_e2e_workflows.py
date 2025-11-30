@@ -293,6 +293,282 @@ output:
         assert "total_dollars" in result["summary"][0]
 
 
+class TestDerivedFieldsIsolation:
+    """E2E tests for Issue #7: derived fields must only apply to target source."""
+
+    def test_derived_fields_do_not_corrupt_other_sources(self, market_analyser_server, tmp_path):
+        """Test that derived fields are ONLY applied to the configured source.
+
+        This is a regression test for Issue #7: derived fields were being applied
+        to ALL data sources, causing fields in other sources (like customers.membership_level)
+        to be overwritten with None.
+        """
+        config = tmp_path / "test_derived_isolation.yaml"
+        config.write_text(
+            """
+data_sources:
+  sales:
+    type: csv
+    data:
+      - id: 1
+        customer_id: CUST001
+        product_id: PROD001
+        quantity: 2
+      - id: 2
+        customer_id: CUST002
+        product_id: PROD002
+        quantity: 3
+
+  customers:
+    type: csv
+    data:
+      - customer_id: CUST001
+        name: Alice
+        membership_level: Gold
+      - customer_id: CUST002
+        name: Bob
+        membership_level: Silver
+
+  products:
+    type: csv
+    data:
+      - product_id: PROD001
+        name: Widget
+        price: 10.00
+      - product_id: PROD002
+        name: Gadget
+        price: 20.00
+
+processing:
+  # First, link sales to customers
+  relationship_highlighting:
+    sales:
+      link_fields:
+        - source: sales
+          source_field: customer_id
+          to: customers
+          target_field: customer_id
+      # This derived field extracts membership_level from the linked customers_info
+      # It should ONLY be applied to 'sales', NOT to 'customers' or 'products'
+      derived_fields:
+        - membership_level = item.customers_info.membership_level
+
+output:
+  type: print
+  format: json
+"""
+        )
+
+        pipeline = Pipeline(str(config))
+        result = pipeline.run()
+
+        # Convert DataFrames to lists for easier assertion
+        import pandas as pd
+
+        def to_list(data):
+            if isinstance(data, pd.DataFrame):
+                return data.to_dict("records")
+            return data
+
+        sales = to_list(result["sales"])
+        customers = to_list(result["customers"])
+        products = to_list(result["products"])
+
+        # Sales should have the derived membership_level field
+        assert "sales" in result
+        assert sales[0]["membership_level"] == "Gold"
+        assert sales[1]["membership_level"] == "Silver"
+
+        # Customers should STILL have their original membership_level (not overwritten to None)
+        assert "customers" in result
+        assert customers[0]["membership_level"] == "Gold"
+        assert customers[1]["membership_level"] == "Silver"
+
+        # Products should NOT have the membership_level field at all
+        assert "products" in result
+        assert "membership_level" not in products[0]
+        assert "membership_level" not in products[1]
+
+    def test_join_then_aggregate_workflow(self, market_analyser_server, tmp_path):
+        """Test the complete workflow from Issue #7: join + derived field + group_by.
+
+        This tests the scenario where:
+        1. Sales are linked to customers (join)
+        2. A derived field extracts customer membership
+        3. Group by the derived membership field
+
+        Before the fix, step 2 would corrupt the customers source, causing step 3 to fail.
+        """
+        config = tmp_path / "test_join_aggregate.yaml"
+        config.write_text(
+            """
+data_sources:
+  sales:
+    type: csv
+    data:
+      - id: 1
+        customer_id: CUST001
+        amount: 100
+      - id: 2
+        customer_id: CUST001
+        amount: 150
+      - id: 3
+        customer_id: CUST002
+        amount: 200
+
+  customers:
+    type: csv
+    data:
+      - customer_id: CUST001
+        membership_level: Gold
+      - customer_id: CUST002
+        membership_level: Silver
+
+processing:
+  relationship_highlighting:
+    sales:
+      link_fields:
+        - source: sales
+          source_field: customer_id
+          to: customers
+          target_field: customer_id
+      derived_fields:
+        - customer_membership = item.customers_info.membership_level
+
+  advanced_operations:
+    sales_by_membership:
+      source: sales
+      group_by: customer_membership
+      aggregate:
+        total_amount: SUM(amount)
+        count: COUNT(*)
+      sort: -total_amount
+
+output:
+  type: print
+  format: json
+"""
+        )
+
+        pipeline = Pipeline(str(config))
+        result = pipeline.run()
+
+        # Convert DataFrames to lists for easier assertion
+        import pandas as pd
+
+        def to_list(data):
+            if isinstance(data, pd.DataFrame):
+                return data.to_dict("records")
+            return data
+
+        # Should have aggregated results by membership
+        assert "sales_by_membership" in result
+        summary = to_list(result["sales_by_membership"])
+        assert len(summary) == 2  # Gold and Silver
+
+        # Verify Gold has 2 sales totaling 250
+        gold_row = next((r for r in summary if r["customer_membership"] == "Gold"), None)
+        assert gold_row is not None
+        assert gold_row["total_amount"] == 250
+        assert gold_row["count"] == 2
+
+        # Verify Silver has 1 sale totaling 200
+        silver_row = next((r for r in summary if r["customer_membership"] == "Silver"), None)
+        assert silver_row is not None
+        assert silver_row["total_amount"] == 200
+        assert silver_row["count"] == 1
+
+
+class TestNestedPathGroupBy:
+    """E2E tests for Issue #7 - Issue 2: group_by with nested paths."""
+
+    def test_group_by_nested_path_after_join(self, market_analyser_server, tmp_path):
+        """Test group_by with nested path created by link_fields join.
+
+        This is a regression test for Issue #7 - Issue 2: group_by didn't support
+        nested paths like 'customers_info.membership_level' which are created
+        after join operations via link_fields.
+        """
+        config = tmp_path / "test_nested_group_by.yaml"
+        config.write_text(
+            """
+data_sources:
+  sales:
+    type: csv
+    data:
+      - id: 1
+        customer_id: CUST001
+        amount: 100
+      - id: 2
+        customer_id: CUST001
+        amount: 150
+      - id: 3
+        customer_id: CUST002
+        amount: 200
+      - id: 4
+        customer_id: CUST002
+        amount: 75
+
+  customers:
+    type: csv
+    data:
+      - customer_id: CUST001
+        membership_level: Gold
+      - customer_id: CUST002
+        membership_level: Silver
+
+processing:
+  relationship_highlighting:
+    sales:
+      link_fields:
+        - source: sales
+          source_field: customer_id
+          to: customers
+          target_field: customer_id
+
+  advanced_operations:
+    sales_by_membership:
+      source: sales
+      group_by: customers_info.membership_level
+      aggregate:
+        total_amount: SUM(amount)
+        count: COUNT(*)
+      sort: -total_amount
+
+output:
+  type: print
+  format: json
+"""
+        )
+
+        pipeline = Pipeline(str(config))
+        result = pipeline.run()
+
+        # Convert DataFrames to lists for easier assertion
+        import pandas as pd
+
+        def to_list(data):
+            if isinstance(data, pd.DataFrame):
+                return data.to_dict("records")
+            return data
+
+        # Should have aggregated results by membership (via nested path)
+        assert "sales_by_membership" in result
+        summary = to_list(result["sales_by_membership"])
+        assert len(summary) == 2  # Gold and Silver
+
+        # Create a lookup by membership level
+        groups = {item["customers_info.membership_level"]: item for item in summary}
+
+        # Verify Gold has 2 sales totaling 250
+        assert groups["Gold"]["total_amount"] == 250
+        assert groups["Gold"]["count"] == 2
+
+        # Verify Silver has 2 sales totaling 275
+        assert groups["Silver"]["total_amount"] == 275
+        assert groups["Silver"]["count"] == 2
+
+
 class TestDataFrameHandling:
     """E2E tests for DataFrame handling in templates (Feedback 3 - Part 1, Issue 1)."""
 
