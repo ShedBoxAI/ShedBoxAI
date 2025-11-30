@@ -1,4 +1,4 @@
-name: Version Bump
+name: 📦 Version Bump
 
 on:
   workflow_dispatch:
@@ -9,9 +9,9 @@ on:
         default: 'patch'
         type: choice
         options:
-        - major
-        - minor
         - patch
+        - minor
+        - major
 
 jobs:
   bump-version:
@@ -35,13 +35,54 @@ jobs:
 
     - name: Configure git
       run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+
+    - name: Get current version
+      id: current
+      run: |
+        CURRENT=$(grep -oP 'current_version = \K.*' .bumpversion.cfg)
+        echo "VERSION=$CURRENT" >> $GITHUB_OUTPUT
+        echo "Current version: $CURRENT"
 
     - name: Bump version
+      id: bump
       run: |
         bump2version ${{ github.event.inputs.version_type }} --verbose
+        NEW=$(grep -oP 'current_version = \K.*' .bumpversion.cfg)
+        echo "VERSION=$NEW" >> $GITHUB_OUTPUT
+        echo "New version: $NEW"
 
-    - name: Push changes
+    - name: Update CHANGELOG.md
       run: |
-        git push origin HEAD:main --follow-tags
+        NEW_VERSION=${{ steps.bump.outputs.VERSION }}
+        DATE=$(date +%Y-%m-%d)
+
+        # Replace [Unreleased] with the new version and date
+        sed -i "s/## \[Unreleased\]/## [Unreleased]\n\n## [$NEW_VERSION] - $DATE/" CHANGELOG.md
+
+        # Update the comparison links at the bottom
+        sed -i "s|\[Unreleased\]: \(.*\)compare/v.*\.\.\.HEAD|[Unreleased]: \1compare/v$NEW_VERSION...HEAD\n[$NEW_VERSION]: \1compare/v${{ steps.current.outputs.VERSION }}...v$NEW_VERSION|" CHANGELOG.md
+
+        # Commit the changelog update
+        git add CHANGELOG.md
+        git commit --amend --no-edit
+
+    - name: Push changes and tags
+      run: |
+        git push origin main
+        git push origin --tags
+
+    - name: Summary
+      run: |
+        echo "## Version Bump Complete 🎉" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Type:** ${{ github.event.inputs.version_type }}" >> $GITHUB_STEP_SUMMARY
+        echo "**From:** v${{ steps.current.outputs.VERSION }}" >> $GITHUB_STEP_SUMMARY
+        echo "**To:** v${{ steps.bump.outputs.VERSION }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "The release workflow will automatically trigger and:" >> $GITHUB_STEP_SUMMARY
+        echo "1. Run tests on Python 3.9-3.13" >> $GITHUB_STEP_SUMMARY
+        echo "2. Build and verify the package" >> $GITHUB_STEP_SUMMARY
+        echo "3. Create GitHub release with changelog" >> $GITHUB_STEP_SUMMARY
+        echo "4. Publish to PyPI" >> $GITHUB_STEP_SUMMARY

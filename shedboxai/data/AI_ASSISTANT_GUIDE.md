@@ -395,6 +395,57 @@ processing:
         - "profit_margin = item.selling_price - item.cost_price"
 ```
 
+### CRITICAL: Accessing Joined Fields
+
+After using `link_fields` to join tables, access linked data via `item.{target}_info.{field}`:
+
+```yaml
+processing:
+  relationship_highlighting:
+    sales:  # Base table
+      link_fields:
+        - source: sales
+          source_field: product_id
+          to: products
+          target_field: id
+        - source: sales
+          source_field: customer_id
+          to: customers
+          target_field: customer_id
+      derived_fields:
+        # Access joined fields via {target}_info.{field}
+        - "profit = (item.products_info.unit_price - item.products_info.cost_price) * item.quantity"
+        - "customer_tier = item.customers_info.membership_level"
+```
+
+**Field Access Reference:**
+
+| Scenario | Pattern | Example |
+|----------|---------|---------|
+| Base table field | `item.{field}` | `item.quantity` |
+| Joined table field | `item.{target}_info.{field}` | `item.products_info.unit_price` |
+| Nested group_by | `{target}_info.{field}` | `group_by: customers_info.level` |
+
+**Common Mistakes:**
+
+```yaml
+# ❌ WRONG - field doesn't exist on base table
+derived_fields:
+  - "profit = item.unit_price * item.quantity"
+
+# ❌ WRONG - flat naming doesn't work
+derived_fields:
+  - "profit = item.products_unit_price * item.quantity"
+
+# ❌ WRONG - Python dict syntax not supported
+derived_fields:
+  - "profit = item.get('products_info', {}).get('unit_price', 0)"
+
+# ✅ CORRECT - use {target}_info.{field}
+derived_fields:
+  - "profit = item.products_info.unit_price * item.quantity"
+```
+
 ### Advanced Operations
 
 Group, aggregate, sort and limit data:
