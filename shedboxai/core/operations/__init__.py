@@ -15,7 +15,7 @@ Main exports:
 """
 
 from .advanced import AdvancedOperationsHandler
-from .base import OperationHandler
+from .base import OperationHandler, ProcessingError, ProcessingIssue, Severity
 from .conversion import FormatConversionHandler
 from .filtering import ContextualFilteringHandler
 from .relationships import RelationshipHighlightingHandler
@@ -24,6 +24,9 @@ from .templates import TemplateMatchingHandler
 
 __all__ = [
     "OperationHandler",
+    "ProcessingError",
+    "ProcessingIssue",
+    "Severity",
     "ContextualFilteringHandler",
     "FormatConversionHandler",
     "ContentSummarizationHandler",
