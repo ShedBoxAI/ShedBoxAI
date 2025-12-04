@@ -399,3 +399,128 @@ class TestBackwardCompatibility:
         assert "## Detected Relationships" in result
         assert "## Recommended ShedBoxAI Operations" in result
         assert "## LLM Context Optimization Tips" in result
+
+
+class TestPIISanitization:
+    """Tests for PII sanitization in sample data."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.generator = MarkdownGenerator()
+
+    def test_date_values_not_sanitized_as_phone(self):
+        """Test that ISO date values are NOT replaced with phone numbers."""
+        # This is a regression test for the bug where dates like "2024-01-15"
+        # were incorrectly sanitized to "(555) 123-4567"
+        values = ["2024-01-15", "2024-02-20", "2024-03-10"]
+        sanitized = self.generator._sanitize_sample_values(values)
+
+        # Dates should remain as dates, not become phone numbers
+        assert sanitized[0] == "2024-01-15"
+        assert sanitized[1] == "2024-02-20"
+        assert sanitized[2] == "2024-03-10"
+        assert "(555)" not in str(sanitized)
+
+    def test_phone_values_are_sanitized(self):
+        """Test that actual phone numbers are sanitized."""
+        values = ["(555) 123-4567", "(555) 234-5678"]
+        sanitized = self.generator._sanitize_sample_values(values)
+
+        assert sanitized[0] == "(555) 123-4567"
+        assert sanitized[1] == "(555) 123-4567"
+
+    def test_email_values_are_sanitized(self):
+        """Test that email addresses are sanitized."""
+        values = ["alice@example.com", "bob@company.org"]
+        sanitized = self.generator._sanitize_sample_values(values)
+
+        assert sanitized[0] == "user@example.com"
+        assert sanitized[1] == "user@example.com"
+
+    def test_date_record_not_sanitized_as_phone(self):
+        """Test that date fields in records are NOT replaced with phone numbers."""
+        record = {"id": 1, "date": "2024-01-15", "signup_date": "2023-06-20", "amount": 100.50}
+        sanitized = self.generator._sanitize_record(record)
+
+        # Date values should remain unchanged
+        assert sanitized["date"] == "2024-01-15"
+        assert sanitized["signup_date"] == "2023-06-20"
+        assert "(555)" not in str(sanitized.values())
+
+    def test_date_field_name_detection(self):
+        """Test that fields with 'date' in name are recognized as date fields."""
+        assert self.generator._is_date_field("date") is True
+        assert self.generator._is_date_field("signup_date") is True
+        assert self.generator._is_date_field("created_at") is True
+        assert self.generator._is_date_field("updated_at") is True
+        assert self.generator._is_date_field("timestamp") is True
+        assert self.generator._is_date_field("name") is False
+        assert self.generator._is_date_field("phone") is False
+
+    def test_date_value_detection(self):
+        """Test that date values are correctly identified."""
+        # ISO format
+        assert self.generator._is_date_value("2024-01-15") is True
+        assert self.generator._is_date_value("2024-01-15T10:30:00") is True
+        # US format
+        assert self.generator._is_date_value("01/15/2024") is True
+        assert self.generator._is_date_value("1/5/24") is True
+        # Not dates
+        assert self.generator._is_date_value("(555) 123-4567") is False
+        assert self.generator._is_date_value("hello world") is False
+        assert self.generator._is_date_value("12345") is False
+
+    def test_phone_value_detection(self):
+        """Test that phone values are correctly identified."""
+        # Valid phone formats
+        assert self.generator._is_phone_value("(555) 123-4567") is True
+        assert self.generator._is_phone_value("555-123-4567") is True
+        assert self.generator._is_phone_value("555.123.4567") is True
+        assert self.generator._is_phone_value("+1-555-123-4567") is True
+        # Not phones (including dates that were previously misclassified)
+        assert self.generator._is_phone_value("2024-01-15") is False
+        assert self.generator._is_phone_value("hello world") is False
+        assert self.generator._is_phone_value("user@example.com") is False
+
+    def test_mixed_data_sanitization(self):
+        """Test sanitization of records with mixed data types."""
+        record = {
+            "customer_id": "CUST_001",
+            "name": "John Smith",
+            "email": "john@example.com",
+            "phone": "(555) 123-4567",
+            "signup_date": "2024-01-15",
+            "amount": 150.00,
+            "category": "Premium",
+        }
+        sanitized = self.generator._sanitize_record(record)
+
+        # IDs and categories should remain unchanged
+        assert sanitized["customer_id"] == "CUST_001"
+        assert sanitized["category"] == "Premium"
+        # PII should be sanitized
+        assert sanitized["name"] == "John Doe"
+        assert sanitized["email"] == "user@example.com"
+        assert sanitized["phone"] == "(555) 123-4567"
+        # Dates should remain as dates
+        assert sanitized["signup_date"] == "2024-01-15"
+        # Numbers should remain unchanged
+        assert sanitized["amount"] == 150.00
+
+    def test_name_field_exact_matching(self):
+        """Test that name sanitization uses exact field matching."""
+        record = {
+            "name": "John Smith",
+            "first_name": "John",
+            "last_name": "Smith",
+            "username": "jsmith123",  # Should NOT be sanitized
+            "filename": "report.pdf",  # Should NOT be sanitized
+        }
+        sanitized = self.generator._sanitize_record(record)
+
+        assert sanitized["name"] == "John Doe"
+        assert sanitized["first_name"] == "John"
+        assert sanitized["last_name"] == "Doe"
+        # These should NOT be sanitized as names
+        assert sanitized["username"] == "jsmith123"
+        assert sanitized["filename"] == "report.pdf"

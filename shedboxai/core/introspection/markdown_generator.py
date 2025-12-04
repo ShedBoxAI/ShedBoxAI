@@ -399,6 +399,40 @@ class MarkdownGenerator:
 
         return truncated
 
+    def _is_date_value(self, value: str) -> bool:
+        """Check if a string value looks like a date."""
+        import re
+
+        if not isinstance(value, str):
+            return False
+        # ISO format: 2024-01-15, 2024-01-15T10:30:00
+        if re.match(r"^\d{4}-\d{2}-\d{2}", value):
+            return True
+        # US format: 01/15/2024, 1/15/24
+        if re.match(r"^\d{1,2}/\d{1,2}/\d{2,4}$", value):
+            return True
+        # EU format: 15-01-2024, 15/01/2024
+        if re.match(r"^\d{1,2}[-/]\d{1,2}[-/]\d{2,4}$", value):
+            return True
+        return False
+
+    def _is_date_field(self, field_name: str) -> bool:
+        """Check if a field name indicates a date field."""
+        lower_name = field_name.lower()
+        date_indicators = ["date", "_at", "_on", "timestamp", "created", "updated", "modified", "time"]
+        return any(indicator in lower_name for indicator in date_indicators)
+
+    def _is_phone_value(self, value: str) -> bool:
+        """Check if a string value looks like a phone number (more restrictive)."""
+        import re
+
+        if not isinstance(value, str):
+            return False
+        # Must have parentheses OR start with + OR match specific phone patterns
+        # Pattern: (555) 123-4567, +1-555-123-4567, 555.123.4567
+        phone_pattern = r"^(\+\d{1,3}[\s-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$"
+        return bool(re.match(phone_pattern, value))
+
     def _sanitize_record(self, record: dict) -> dict:
         """Remove/mask PII from a single record."""
         sanitized = {}
@@ -411,10 +445,15 @@ class MarkdownGenerator:
                 sanitized[key] = "user@example.com"
             elif any(pii_field in lower_key for pii_field in ["phone", "mobile", "tel"]):
                 sanitized[key] = "(555) 123-4567"
-            elif any(pii_field in lower_key for pii_field in ["name", "first", "last"]):
-                if "first" in lower_key:
+            # Check for date fields BEFORE name fields to avoid "signup_date" -> "John Doe"
+            elif self._is_date_field(key) or self._is_date_value(str(value)):
+                # Keep date values as-is (not PII)
+                sanitized[key] = value
+            elif lower_key == "name" or lower_key in ["first_name", "last_name", "full_name"]:
+                # More precise name field matching - exact matches only
+                if lower_key == "first_name":
                     sanitized[key] = "John"
-                elif "last" in lower_key:
+                elif lower_key == "last_name":
                     sanitized[key] = "Doe"
                 else:
                     sanitized[key] = "John Doe"
@@ -429,13 +468,8 @@ class MarkdownGenerator:
             elif isinstance(value, str) and "@" in value and "." in value:
                 # Catch email-like strings even if key doesn't indicate it
                 sanitized[key] = "user@example.com"
-            elif (
-                isinstance(value, str)
-                and len(value) >= 10
-                and any(char.isdigit() for char in value)
-                and any(char in "()- " for char in value)
-            ):
-                # Catch phone-like strings
+            elif self._is_phone_value(str(value)):
+                # Use more restrictive phone detection
                 sanitized[key] = "(555) 123-4567"
             else:
                 # Keep non-PII data as-is
@@ -450,7 +484,12 @@ class MarkdownGenerator:
             if isinstance(value, str):
                 if "@" in value and "." in value:
                     sanitized.append("user@example.com")
-                elif any(char.isdigit() for char in value) and any(char in "()- " for char in value):
+                # Check for date BEFORE phone to avoid false positives
+                elif self._is_date_value(value):
+                    # Keep dates as-is (not PII)
+                    sanitized.append(value)
+                elif self._is_phone_value(value):
+                    # Use restrictive phone detection
                     sanitized.append("(555) 123-4567")
                 else:
                     sanitized.append(value)

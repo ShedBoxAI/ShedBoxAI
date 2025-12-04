@@ -368,8 +368,20 @@ class CSVAnalyzer(FileAnalyzer):
         if sample.str.match(email_pattern).all():
             return "email"
 
-        # Phone pattern
-        phone_pattern = r"^[\+]?[1-9]?[\d\s\-\(\)]{10,}$"
+        # Date patterns - check BEFORE phone to avoid false positives
+        # ISO format: 2024-01-15, 2024-01-15T10:30:00
+        iso_date_pattern = r"^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2})?.*$"
+        if sample.str.match(iso_date_pattern).all():
+            return "date"
+
+        # US date format: 01/15/2024, 1/15/24
+        us_date_pattern = r"^\d{1,2}/\d{1,2}/\d{2,4}$"
+        if sample.str.match(us_date_pattern).all():
+            return "date"
+
+        # Phone pattern - more restrictive to avoid matching dates
+        # Requires parentheses OR starts with + OR has specific phone structure
+        phone_pattern = r"^(\+\d{1,3}[\s-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$"
         if sample.str.match(phone_pattern).all():
             return "phone"
 
