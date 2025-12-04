@@ -39,19 +39,23 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
+        ref: main  # Always checkout main branch
         fetch-depth: 0  # Full history for proper changelog
 
     - name: Determine release tag
       id: release_tag
       run: |
         if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-          # Manual trigger: use the latest tag
+          # Manual trigger: fetch latest, checkout main, and use latest tag
+          git fetch origin main --tags --force
+          git checkout main
+          git pull origin main
           TAG=$(git describe --tags --abbrev=0)
-          echo "Using latest tag: $TAG"
+          echo "Manual trigger - using latest tag: $TAG"
         else
           # Tag push trigger: use the pushed tag
           TAG=${{ github.ref_name }}
-          echo "Using pushed tag: $TAG"
+          echo "Tag push trigger - using tag: $TAG"
         fi
         echo "tag=$TAG" >> $GITHUB_OUTPUT
 
@@ -101,7 +105,22 @@ jobs:
         # Write to file for multi-line support
         echo "$CHANGELOG" > release_notes.md
 
+    - name: Check if release already exists
+      id: check_release
+      run: |
+        TAG=${{ steps.release_tag.outputs.tag }}
+        if gh release view $TAG > /dev/null 2>&1; then
+          echo "exists=true" >> $GITHUB_OUTPUT
+          echo "⚠️  Release $TAG already exists. Skipping release creation."
+        else
+          echo "exists=false" >> $GITHUB_OUTPUT
+          echo "✓ Release $TAG does not exist. Will create new release."
+        fi
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
     - name: Create GitHub Release
+      if: steps.check_release.outputs.exists == 'false'
       run: |
         gh release create ${{ steps.release_tag.outputs.tag }} \
           --title "ShedBoxAI ${{ steps.release_tag.outputs.tag }}" \
