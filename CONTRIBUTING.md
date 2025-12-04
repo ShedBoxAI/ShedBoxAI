@@ -34,10 +34,13 @@ Thank you for your interest in contributing to ShedBoxAI! This document provides
    pip install -e ".[dev]"
    ```
 
-4. **Set up pre-commit hooks** (recommended)
+4. **Set up pre-commit hooks** (required)
    ```bash
    pre-commit install
+   pre-commit install --hook-type pre-push
    ```
+
+   Pre-commit hooks will automatically run code formatting and checks before commits and pushes. These same checks run in CI on all pull requests.
 
 ### Running Tests
 
@@ -84,15 +87,18 @@ bandit -r shedboxai/
 
 #### Pre-commit Hooks
 
-Pre-commit hooks will automatically run these checks before each commit:
+Pre-commit hooks will automatically run these checks before each commit and push:
 
 ```bash
-# Install pre-commit hooks (one-time setup)
+# Install pre-commit hooks (one-time setup, required)
 pre-commit install
+pre-commit install --hook-type pre-push
 
 # Run pre-commit hooks manually on all files
 pre-commit run --all-files
 ```
+
+**Note:** Pre-commit checks are also enforced in CI for all pull requests. If you haven't installed the hooks locally, the CI will catch any formatting issues.
 
 ### Running the Application
 
@@ -148,19 +154,20 @@ Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
    # Run all tests
    pytest tests/
 
-   # Check code formatting
+   # Run pre-commit checks (or let the hooks do it automatically)
+   pre-commit run --all-files
+
+   # Optional: Run individual checks manually
    black --check .
    isort --check-only .
    flake8 .
-
-   # Run security scan
    bandit -r shedboxai/
    ```
 
 4. **Create a pull request**
    - Provide a clear description of changes
    - Reference any related issues
-   - Ensure CI checks pass
+   - Ensure all CI checks pass (tests, pre-commit, etc.)
 
 ### Testing Guidelines
 

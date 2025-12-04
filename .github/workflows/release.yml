@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 jobs:
   test:
@@ -40,6 +41,20 @@ jobs:
       with:
         fetch-depth: 0  # Full history for proper changelog
 
+    - name: Determine release tag
+      id: release_tag
+      run: |
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          # Manual trigger: use the latest tag
+          TAG=$(git describe --tags --abbrev=0)
+          echo "Using latest tag: $TAG"
+        else
+          # Tag push trigger: use the pushed tag
+          TAG=${{ github.ref_name }}
+          echo "Using pushed tag: $TAG"
+        fi
+        echo "tag=$TAG" >> $GITHUB_OUTPUT
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
@@ -61,7 +76,9 @@ jobs:
 
     - name: Extract version from tag
       id: get_version
-      run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+      run: |
+        TAG=${{ steps.release_tag.outputs.tag }}
+        echo "VERSION=${TAG#v}" >> $GITHUB_OUTPUT
 
     - name: Extract changelog for this version
       id: changelog
@@ -86,8 +103,8 @@ jobs:
 
     - name: Create GitHub Release
       run: |
-        gh release create ${{ github.ref_name }} \
-          --title "ShedBoxAI ${{ github.ref_name }}" \
+        gh release create ${{ steps.release_tag.outputs.tag }} \
+          --title "ShedBoxAI ${{ steps.release_tag.outputs.tag }}" \
           --notes-file release_notes.md \
           dist/*.tar.gz \
           dist/*.whl
