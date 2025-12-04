@@ -402,6 +402,7 @@ class MarkdownGenerator:
     def _is_date_value(self, value: str) -> bool:
         """Check if a string value looks like a date."""
         import re
+
         if not isinstance(value, str):
             return False
         # ISO format: 2024-01-15, 2024-01-15T10:30:00
@@ -424,6 +425,7 @@ class MarkdownGenerator:
     def _is_phone_value(self, value: str) -> bool:
         """Check if a string value looks like a phone number (more restrictive)."""
         import re
+
         if not isinstance(value, str):
             return False
         # Must have parentheses OR start with + OR match specific phone patterns

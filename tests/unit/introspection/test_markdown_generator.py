@@ -439,12 +439,7 @@ class TestPIISanitization:
 
     def test_date_record_not_sanitized_as_phone(self):
         """Test that date fields in records are NOT replaced with phone numbers."""
-        record = {
-            "id": 1,
-            "date": "2024-01-15",
-            "signup_date": "2023-06-20",
-            "amount": 100.50
-        }
+        record = {"id": 1, "date": "2024-01-15", "signup_date": "2023-06-20", "amount": 100.50}
         sanitized = self.generator._sanitize_record(record)
 
         # Date values should remain unchanged
@@ -496,7 +491,7 @@ class TestPIISanitization:
             "phone": "(555) 123-4567",
             "signup_date": "2024-01-15",
             "amount": 150.00,
-            "category": "Premium"
+            "category": "Premium",
         }
         sanitized = self.generator._sanitize_record(record)
 
