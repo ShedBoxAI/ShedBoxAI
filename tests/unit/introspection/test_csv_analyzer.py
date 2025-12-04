@@ -255,6 +255,92 @@ class TestCSVAnalyzer:
         assert columns_by_name["email"].pattern == "email"
         assert columns_by_name["user_id"].pattern == "structured_id"
 
+    def test_date_pattern_detection_iso_format(self):
+        """Test that ISO date format is detected as date type or date pattern, not phone"""
+        config = {
+            "name": "date_pattern_test",
+            "data": [
+                {"date": "2024-01-15", "signup_date": "2023-06-20"},
+                {"date": "2024-01-16", "signup_date": "2023-07-15"},
+                {"date": "2024-01-17", "signup_date": "2023-08-10"},
+            ],
+        }
+
+        result = self.analyzer.analyze(config)
+
+        assert result.success
+
+        columns_by_name = {col.name: col for col in result.schema_info.columns}
+        # Dates should be detected as date type OR date pattern, NOT phone
+        # The type detection may catch it as date_string before pattern detection runs
+        assert columns_by_name["date"].type == "date_string" or columns_by_name["date"].pattern == "date"
+        assert columns_by_name["signup_date"].type == "date_string" or columns_by_name["signup_date"].pattern == "date"
+        # Must NOT be detected as phone
+        assert columns_by_name["date"].pattern != "phone"
+        assert columns_by_name["signup_date"].pattern != "phone"
+
+    def test_date_pattern_not_confused_with_phone(self):
+        """Test that date patterns like 2024-01-15 are NOT matched as phone numbers"""
+        # This is a regression test for the bug where dates were incorrectly
+        # classified as phone numbers due to overly permissive regex
+        config = {
+            "name": "date_vs_phone_test",
+            "data": [
+                {"date": "2024-01-15", "phone": "(555) 123-4567"},
+                {"date": "2024-02-20", "phone": "(555) 234-5678"},
+                {"date": "2024-03-10", "phone": "(555) 345-6789"},
+            ],
+        }
+
+        result = self.analyzer.analyze(config)
+
+        assert result.success
+
+        columns_by_name = {col.name: col for col in result.schema_info.columns}
+        # Date column should be date type or pattern, NOT phone
+        assert columns_by_name["date"].type == "date_string" or columns_by_name["date"].pattern == "date"
+        assert columns_by_name["date"].pattern != "phone"
+        # Phone column should be "phone" pattern
+        assert columns_by_name["phone"].pattern == "phone"
+
+    def test_phone_pattern_detection(self):
+        """Test that various phone formats are correctly detected"""
+        config = {
+            "name": "phone_pattern_test",
+            "data": [
+                {"phone": "(555) 123-4567"},
+                {"phone": "(555) 234-5678"},
+                {"phone": "(555) 345-6789"},
+            ],
+        }
+
+        result = self.analyzer.analyze(config)
+
+        assert result.success
+
+        columns_by_name = {col.name: col for col in result.schema_info.columns}
+        assert columns_by_name["phone"].pattern == "phone"
+
+    def test_us_date_format_detection(self):
+        """Test that US date format (MM/DD/YYYY) is detected as date"""
+        config = {
+            "name": "us_date_test",
+            "data": [
+                {"date": "01/15/2024"},
+                {"date": "02/20/2024"},
+                {"date": "03/10/2024"},
+            ],
+        }
+
+        result = self.analyzer.analyze(config)
+
+        assert result.success
+
+        columns_by_name = {col.name: col for col in result.schema_info.columns}
+        # Should be date type or pattern, not phone
+        assert columns_by_name["date"].type == "date_string" or columns_by_name["date"].pattern == "date"
+        assert columns_by_name["date"].pattern != "phone"
+
     def test_identifier_detection(self):
         """Test identifier column detection"""
         config = {
